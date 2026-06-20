@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SiteShell } from "@/components/site-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,8 +13,16 @@ import { toast } from "sonner"
 
 export default function RegisterPage() {
   const router = useRouter()
-  const { register } = useAuth()
+  const { user, loading, register } = useAuth()
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(user.role === "admin" ? "/dashboard" : "/profile")
+    }
+  }, [user, loading, router])
+
+  if (loading || user) return null
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -29,7 +37,7 @@ export default function RegisterPage() {
     const lastName = String(form.get("last_name") ?? "")
     setSubmitting(true)
     try {
-      await register({
+      const registeredUser = await register({
         first_name: firstName,
         last_name: lastName,
         email: String(form.get("email") ?? ""),
@@ -37,7 +45,7 @@ export default function RegisterPage() {
         password_confirmation: confirm,
       })
       toast.success("Account created!")
-      router.push("/profile")
+      router.push(registeredUser.role === "admin" ? "/dashboard" : "/profile")
     } catch (err) {
       toast.error(
         getApiErrorMessage(err, "Could not create your account. Please try again."),

@@ -2,6 +2,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import type { Category } from "@/lib/types"
+import { getImageUrl } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
 interface CategoryCardProps {
@@ -10,7 +11,7 @@ interface CategoryCardProps {
 }
 
 export function CategoryCard({ category, className }: CategoryCardProps) {
-  const image = category.image ?? "/placeholder.svg?height=400&width=400"
+  const image = getImageUrl(category.image)
 
   return (
     <Link
@@ -21,7 +22,7 @@ export function CategoryCard({ category, className }: CategoryCardProps) {
       )}
     >
       <Image
-        src={image || "/placeholder.svg"}
+        src={image}
         alt={category.name}
         fill
         sizes="(max-width: 768px) 50vw, 33vw"

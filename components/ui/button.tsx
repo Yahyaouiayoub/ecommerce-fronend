@@ -59,6 +59,7 @@ function Button({
         data-slot="button"
         className={classes}
         render={child}
+        nativeButton={child.type === "button"}
         {...props}
       />
     )

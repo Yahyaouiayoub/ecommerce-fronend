@@ -4,6 +4,7 @@ import { ArrowRight, Leaf, ShieldCheck, Truck } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
 import { FeaturedProducts } from "@/components/sections/featured-products"
 import { CategoriesPreview } from "@/components/sections/categories-preview"
+import { HomepageCta } from "@/components/homepage-cta"
 
 const PERKS = [
   {
@@ -95,24 +96,7 @@ export default function HomePage() {
       <CategoriesPreview />
       <FeaturedProducts />
 
-      {/* CTA */}
-      <section className="mx-auto max-w-7xl px-4 pb-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center gap-4 rounded-2xl bg-primary px-6 py-14 text-center text-primary-foreground">
-          <h2 className="max-w-xl text-3xl font-semibold tracking-tight text-balance">
-            Join the Lumen community
-          </h2>
-          <p className="max-w-md text-pretty text-primary-foreground/80">
-            Create an account to track orders, save favorites, and check out
-            faster.
-          </p>
-          <Link 
-            href="/register" 
-            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors mt-2"
-          >
-            Create an account
-          </Link>
-        </div>
-      </section>
+      <HomepageCta />
     </SiteShell>
   )
 }

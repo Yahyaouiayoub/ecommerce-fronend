@@ -7,7 +7,7 @@ import type { Product } from "@/lib/types"
 import { getImageUrl } from "@/lib/api/client"
 import { cn, formatPrice } from "@/lib/utils"
 import { useAppDispatch } from "@/lib/store"
-import { addToCart } from "@/lib/store/cart-slice"
+import { addToCartAsync } from "@/lib/store/cart-slice"
 import { toast } from "sonner"
 
 interface ProductCardProps {
@@ -25,8 +25,14 @@ export function ProductCard({ product, className }: ProductCardProps) {
 
   function handleAdd(e: React.MouseEvent) {
     e.preventDefault()
-    dispatch(addToCart({ product, quantity: 1 }))
-    toast.success(`${product.name} added to cart`)
+    dispatch(addToCartAsync({ product, quantity: 1 }))
+      .unwrap()
+      .then(() => {
+        toast.success(`${product.name} added to cart`)
+      })
+      .catch(() => {
+        toast.error("Could not sync with server. Try again.")
+      })
   }
 
   return (

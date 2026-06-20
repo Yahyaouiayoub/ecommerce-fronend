@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { useAuth } from "@/lib/hooks/use-auth"
 
 const FOOTER_SECTIONS = [
   {
@@ -14,7 +17,7 @@ const FOOTER_SECTIONS = [
     title: "Account",
     links: [
       { label: "My Profile", href: "/profile" },
-      { label: "My Orders", href: "/orders" },
+      { label: "My Orders", href: "/orders", requireClient: true },
       { label: "Cart", href: "/cart" },
       { label: "Sign In", href: "/login" },
     ],
@@ -31,6 +34,9 @@ const FOOTER_SECTIONS = [
 ]
 
 export function Footer() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
+
   return (
     <footer className="mt-20 border-t border-border bg-card">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -50,16 +56,18 @@ export function Footer() {
                 {section.title}
               </h3>
               <ul className="mt-4 flex flex-col gap-2">
-                {section.links.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
+                {section.links
+                  .filter((link) => !isAdmin || !(link as any).requireClient)
+                  .map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
               </ul>
             </div>
           ))}

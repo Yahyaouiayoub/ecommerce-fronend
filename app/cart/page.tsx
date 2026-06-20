@@ -6,12 +6,14 @@ import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
 import { OrderSummary } from "@/components/order-summary"
 import { StateMessage } from "@/components/state-message"
+import { toast } from "sonner"
 import { formatPrice } from "@/lib/utils"
+import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import { useAppDispatch, useAppSelector, selectCartItems } from "@/lib/store"
 import {
-  removeFromCart,
-  updateQuantity,
-  clearCart,
+  removeFromCartAsync,
+  updateQuantityAsync,
+  clearCartAsync,
 } from "@/lib/store/cart-slice"
 
 export default function CartPage() {
@@ -47,11 +49,11 @@ export default function CartPage() {
                 {items.map((item) => (
                   <li key={item.id} className="flex gap-4 p-4">
                     <Link
-                      href={`/products/${item.slug}`}
+                      href={`/products/${item.id}`}
                       className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
                     >
                       <Image
-                        src={item.image || "/placeholder.svg"}
+                        src={getImageUrl(item.image)}
                         alt={item.name}
                         fill
                         sizes="96px"
@@ -62,7 +64,7 @@ export default function CartPage() {
                     <div className="flex flex-1 flex-col">
                       <div className="flex items-start justify-between gap-2">
                         <Link
-                          href={`/products/${item.slug}`}
+                          href={`/products/${item.id}`}
                           className="font-medium text-foreground hover:underline"
                         >
                           {item.name}
@@ -70,7 +72,11 @@ export default function CartPage() {
                         <button
                           type="button"
                           aria-label={`Remove ${item.name}`}
-                          onClick={() => dispatch(removeFromCart(item.id))}
+                          onClick={() =>
+                            dispatch(removeFromCartAsync({ id: item.id, cartItemId: item.cartItemId }))
+                              .unwrap()
+                              .catch((err) => toast.error(getApiErrorMessage(err, "Could not remove item.")))
+                          }
                           className="text-muted-foreground transition-colors hover:text-destructive"
                         >
                           <Trash2 className="size-4" />
@@ -87,11 +93,13 @@ export default function CartPage() {
                             aria-label="Decrease quantity"
                             onClick={() =>
                               dispatch(
-                                updateQuantity({
+                                updateQuantityAsync({
                                   id: item.id,
+                                  cartItemId: item.cartItemId,
                                   quantity: item.quantity - 1,
                                 }),
-                              )
+                              ).unwrap()
+                                .catch((err) => toast.error(getApiErrorMessage(err, "Could not update quantity.")))
                             }
                           >
                             <Minus className="size-3.5" />
@@ -104,11 +112,13 @@ export default function CartPage() {
                             aria-label="Increase quantity"
                             onClick={() =>
                               dispatch(
-                                updateQuantity({
+                                updateQuantityAsync({
                                   id: item.id,
+                                  cartItemId: item.cartItemId,
                                   quantity: item.quantity + 1,
                                 }),
-                              )
+                              ).unwrap()
+                                .catch((err) => toast.error(getApiErrorMessage(err, "Could not update quantity.")))
                             }
                           >
                             <Plus className="size-3.5" />
@@ -131,7 +141,11 @@ export default function CartPage() {
                   Continue shopping
                 </Link>
                 <button 
-                  onClick={() => dispatch(clearCart())}
+                  onClick={() =>
+                    dispatch(clearCartAsync())
+                      .unwrap()
+                      .catch((err) => toast.error(getApiErrorMessage(err, "Could not clear cart on server.")))
+                  }
                   className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg hover:bg-muted hover:text-foreground px-3 py-1 text-sm font-medium transition-colors"
                 >
                   Clear cart

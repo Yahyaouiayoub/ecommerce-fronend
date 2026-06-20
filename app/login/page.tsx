@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SiteShell } from "@/components/site-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,20 +13,28 @@ import { toast } from "sonner"
 
 export default function LoginPage() {
   const router = useRouter()
-  const { login } = useAuth()
+  const { user, loading, login } = useAuth()
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(user.role === "admin" ? "/dashboard" : "/profile")
+    }
+  }, [user, loading, router])
+
+  if (loading || user) return null
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
     setSubmitting(true)
     try {
-      await login({
+      const loggedUser = await login({
         email: String(form.get("email") ?? ""),
         password: String(form.get("password") ?? ""),
       })
       toast.success("Welcome back!")
-      router.push("/profile")
+      router.push(loggedUser.role === "admin" ? "/dashboard" : "/profile")
     } catch (err) {
       toast.error(
         getApiErrorMessage(err, "Invalid email or password."),

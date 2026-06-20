@@ -6,14 +6,17 @@ const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || "http://localhost:800
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
-    "Content-Type": "application/json",
     Accept: "application/json",
   },
 })
 
 // Helper for images
+const PLACEHOLDER = "/placeholder.svg"
+const FAKE_PATHS = new Set(["/product.jpg"])
+
 export function getImageUrl(path: string | undefined): string {
-  if (!path) return "/placeholder.svg"
+  if (!path) return PLACEHOLDER
+  if (FAKE_PATHS.has(path)) return PLACEHOLDER
   if (path.startsWith("http")) return path
   if (path.startsWith("/storage")) return `${STORAGE_URL}${path}`
   if (path.startsWith("/")) return `${STORAGE_URL}${path}`
@@ -52,11 +55,15 @@ export function getToken(): string | null {
 export function setToken(token: string): void {
   if (typeof window === "undefined") return
   localStorage.setItem(TOKEN_KEY, token)
+  // Sync to cookie so Next.js middleware can read it
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=86400; SameSite=Lax`
 }
 
 export function removeToken(): void {
   if (typeof window === "undefined") return
   localStorage.removeItem(TOKEN_KEY)
+  // Remove cookie for middleware
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`
 }
 
 // Session ID for guest cart

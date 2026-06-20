@@ -2,20 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react"
 import type { User } from "@/lib/types"
-import { getToken, setToken, removeToken, getSessionId } from "@/lib/api/client"
+import { getToken, setToken, removeToken } from "@/lib/api/client"
+import { useAppDispatch } from "@/lib/store"
+import { fetchCartFromServer, clearCart } from "@/lib/store/cart-slice"
 import {
   getMe,
   login as loginRequest,
   logout as logoutRequest,
   register as registerRequest,
-  mergeCart,
   type LoginPayload,
   type RegisterPayload,
 } from "@/lib/api/services"
 
 const SESSION_KEY = "guest_session_id"
+const CART_STORAGE_KEY = "cart_items"
 
 export function useAuth() {
+  const dispatch = useAppDispatch()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(() => {
     if (typeof window === "undefined") return true
@@ -44,11 +47,20 @@ export function useAuth() {
   useEffect(() => {
     let cancelled = false
     const token = getToken()
-    if (!token) return
+    if (!token) {
+      setLoading(false)
+      // Fetch guest cart by session_id
+      dispatch(fetchCartFromServer())
+      return
+    }
 
     getMe()
       .then((userData) => {
-        if (!cancelled) setUser(userData)
+        if (!cancelled) {
+          setUser(userData)
+          // Fetch this user's cart from server
+          dispatch(fetchCartFromServer())
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -63,54 +75,43 @@ export function useAuth() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [dispatch])
 
   const login = useCallback(async (payload: LoginPayload) => {
     const res = await loginRequest(payload)
     setToken(res.token)
     setUser(res.user)
 
-    // Merge guest cart
-    const sessionId = getSessionId()
-    if (sessionId) {
-      try {
-        await mergeCart(sessionId)
-        localStorage.removeItem(SESSION_KEY)
-      } catch {
-        // Ignore merge errors
-      }
-    }
+    // Fetch user's cart from server (backend mergeGuestCart already merged guest cart)
+    await dispatch(fetchCartFromServer()).unwrap()
 
     return res.user
-  }, [])
+  }, [dispatch])
 
   const register = useCallback(async (payload: RegisterPayload) => {
     const res = await registerRequest(payload)
     setToken(res.token)
     setUser(res.user)
 
-    const sessionId = getSessionId()
-    if (sessionId) {
-      try {
-        await mergeCart(sessionId)
-        localStorage.removeItem(SESSION_KEY)
-      } catch {
-        // Ignore merge errors
-      }
-    }
+    // Fetch user's cart from server (backend mergeGuestCart already merged guest cart)
+    await dispatch(fetchCartFromServer()).unwrap()
 
     return res.user
-  }, [])
+  }, [dispatch])
 
   const logout = useCallback(async () => {
     try {
       await logoutRequest()
     } catch {
-      // Ignore
+      // Ignore server errors on logout
     }
     removeToken()
     setUser(null)
-  }, [])
+    // Clear all cart data — prevents data leaking to the next user
+    dispatch(clearCart())
+    localStorage.removeItem(CART_STORAGE_KEY)
+    localStorage.removeItem(SESSION_KEY)
+  }, [dispatch])
 
   return { user, loading, login, register, logout, refresh, setUser }
 }

@@ -2,12 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Menu,
   Search,
   ShoppingBag,
   User as UserIcon,
+  Moon,
+  Sun,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -18,8 +20,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { useAppSelector, selectCartCount } from "@/lib/store"
+import { useTheme } from "next-themes"
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -30,7 +32,13 @@ const NAV_LINKS = [
 export function Navbar() {
   const pathname = usePathname()
   const cartCount = useAppSelector(selectCartCount)
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
@@ -114,7 +122,18 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 lg:ml-2">
-          <ThemeToggle />
+          {/* Theme Toggle */}
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+            aria-label="Toggle theme"
+          >
+            {mounted && theme === "dark" ? (
+              <Sun className="size-5" />
+            ) : (
+              <Moon className="size-5" />
+            )}
+          </button>
           <Link 
             href="/profile" 
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
