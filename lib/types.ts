@@ -27,6 +27,7 @@ export interface User {
   role: "admin" | "client"
   avatar?: string
   phone?: string
+  last_login_at?: string
   address?: string
   city?: string
   country?: string
@@ -144,12 +145,52 @@ export interface InvoicePayment {
   amount: number
   amount_formatted: string
   payment_method: string
-  payment_type: "full" | "partial_50" | "partial_30" | "custom"
+  payment_type: "full" | "partial_20" | "partial_30" | "partial_50" | "partial_60" | "partial_70" | "partial_80" | "custom"
   payment_type_label: string
   status: string
   status_label: string
   paid_at?: string
   created_at: string
+}
+
+export type InvoiceStatus = "unpaid" | "partially_paid" | "paid" | "pending" | "failed" | "refunded" | "cancelled"
+
+export interface InvoiceOrderItem {
+  id: number
+  product_id: number
+  product_name: string
+  quantity: number
+  price: number
+  price_formatted: string
+  subtotal: number
+  subtotal_formatted: string
+}
+
+export interface InvoiceOrder {
+  id: number
+  order_number: string
+  total_price: number
+  status: string
+  status_label: string
+  created_at: string
+  customer?: {
+    id: number
+    full_name: string
+    email: string
+    phone?: string
+  }
+  address?: {
+    full_name: string
+    address_line1: string
+    address_line2?: string
+    city: string
+    state?: string
+    postal_code?: string
+    country: string
+    email?: string
+    phone?: string
+  }
+  items?: InvoiceOrderItem[]
 }
 
 export interface Invoice {
@@ -159,17 +200,35 @@ export interface Invoice {
   total_amount: number
   paid_amount: number
   remaining_amount: number
-  status: "unpaid" | "partially_paid" | "paid"
+  status: InvoiceStatus
   status_label: string
+  status_color: string
   total_formatted: string
   paid_formatted: string
   remaining_formatted: string
   due_date?: string
   notes?: string
+  billing_name?: string
+  billing_email?: string
+  billing_phone?: string
+  billing_address?: string
+  payment_method?: string
   issued_at?: string
   paid_at?: string
   created_at: string
+  updated_at: string
   payments?: InvoicePayment[]
+  order?: InvoiceOrder
+}
+
+export interface InvoiceDetailResponse {
+  data: Invoice
+  meta?: {
+    subtotal: number
+    shipping: number
+    tax: number
+    total: number
+  }
 }
 
 export interface PaymentOption {
@@ -207,6 +266,31 @@ export interface OrderPaymentSummary {
   payments: InvoicePayment[]
 }
 
+export interface InvoiceStats {
+  total_invoices: number
+  paid_invoices: number
+  pending_invoices: number
+  refunded_invoices: number
+  failed_invoices: number
+  cancelled_invoices: number
+  total_revenue: number
+  total_pending_amount: number
+}
+
+export interface InvoiceSettings {
+  auto_generate: boolean
+  prefix: string
+  number_format: string
+  company_name: string
+  company_address: string
+  company_city: string
+  company_country: string
+  company_phone: string
+  company_email: string
+  payment_terms: number
+  footer_notes: string
+}
+
 export interface Order {
   id: number
   order_number: string
@@ -240,6 +324,50 @@ export interface PaginatedResponse<T> {
 export interface ApiResponse<T> {
   data: T
   message?: string
+}
+
+// =========================
+// SHIPPING METHODS
+// =========================
+export interface ShippingMethod {
+  id: number
+  name: string
+  description?: string
+  cost: number
+  estimated_days?: number
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+}
+
+// =========================
+// SHIPPING & TAX SETTINGS
+// =========================
+export interface ShippingSettings {
+  enabled: boolean
+  free_shipping: boolean
+  free_shipping_min: number
+  standard_cost: number
+  message: string
+}
+
+export interface TaxSettings {
+  enabled: boolean
+  rate: number
+  type: "percentage" | "fixed"
+  label: string
+}
+
+export interface PublicSettings {
+  shipping: ShippingSettings
+  tax: TaxSettings
+}
+
+export interface AdminSettingsResponse {
+  settings: Record<string, Record<string, string>>
+  shipping: ShippingSettings
+  tax: TaxSettings
+  invoice: InvoiceSettings
 }
 
 // =========================
@@ -295,6 +423,15 @@ export interface DashboardStats {
   active_carts: number
   abandoned_carts: number
   converted_carts: number
+
+  // Invoice statistics
+  total_invoices: number
+  paid_invoices: number
+  pending_invoices: number
+  refunded_invoices: number
+  failed_invoices: number
+  cancelled_invoices: number
+  total_pending_amount: number
 
   // Recent orders
   recent_orders: {

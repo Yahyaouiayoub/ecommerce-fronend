@@ -14,13 +14,35 @@ export const api = axios.create({
 const PLACEHOLDER = "/placeholder.svg"
 const FAKE_PATHS = new Set(["/product.jpg"])
 
+/**
+ * Resolves a product image path to a full URL.
+ *
+ * The Laravel API stores images as relative paths (e.g. "products/thumbnails/abc.jpg")
+ * inside the public disk. The `storage` symlink makes them accessible at:
+ *   {STORAGE_URL}/{relative_path}
+ *
+ * This function also handles:
+ * - Absolute URLs (passed through as-is)
+ * - Paths starting with /storage/ (strips the prefix to avoid doubling)
+ * - Paths starting with / (prepends STORAGE_URL)
+ * - Known fake/placeholder paths (returns placeholder)
+ */
 export function getImageUrl(path: string | undefined): string {
   if (!path) return PLACEHOLDER
   if (FAKE_PATHS.has(path)) return PLACEHOLDER
   if (path.startsWith("http")) return path
-  if (path.startsWith("/storage")) return `${STORAGE_URL}${path}`
+  // If path already includes /storage/, strip it to avoid STORAGE_URL + /storage/... doubling
+  if (path.startsWith("/storage/")) return `${STORAGE_URL}/${path.slice(9)}`
   if (path.startsWith("/")) return `${STORAGE_URL}${path}`
   return `${STORAGE_URL}/${path}`
+}
+
+/**
+ * Returns true when an image URL points to the local storage server
+ * (i.e. it needs Next.js image optimization skipped for speed).
+ */
+export function isStorageUrl(url: string): boolean {
+  return url.startsWith(STORAGE_URL)
 }
 
 export function getApiErrorMessage(error: unknown, fallback: string): string {

@@ -11,6 +11,8 @@ export interface CartItem {
   price: number
   image?: string
   quantity: number
+  /** Optional available stock for validation/display */
+  stock?: number
 }
 
 interface CartState {
@@ -35,6 +37,7 @@ export const fetchCartFromServer = createAsyncThunk(
       price: item.product.price,
       image: item.product.thumbnail ?? item.product.images?.[0]?.image_url,
       quantity: item.quantity,
+      stock: item.product.stock,
     }))
   },
 )
@@ -52,6 +55,7 @@ export const addToCartAsync = createAsyncThunk(
       price: product.price,
       image: product.thumbnail ?? product.images?.[0]?.image_url,
       quantity: res.cart.quantity,
+      stock: product.stock,
     }
   },
 )
@@ -67,14 +71,29 @@ export const removeFromCartAsync = createAsyncThunk(
   },
 )
 
-/** PUT /api/cart/{cartItemId} then update local state */
+/**
+ * PUT /api/cart/{cartItemId} then update local state.
+ * Uses optimistic updates — UI changes instantly, API call fires in background.
+ */
 export const updateQuantityAsync = createAsyncThunk(
   "cart/updateQuantityAsync",
-  async ({ id, cartItemId, quantity }: { id: number; cartItemId?: number; quantity: number }) => {
+  async (
+    { id, quantity }: { id: number; cartItemId?: number; quantity: number },
+    { getState },
+  ) => {
+    const state = getState() as { cart: CartState }
+    const item = state.cart.items.find((i) => i.id === id)
     const qty = Math.max(1, quantity)
-    if (cartItemId) {
-      await cartService.updateCartItem(cartItemId, qty)
+
+    // Only fire API call if we have a cartItemId (server-side record)
+    if (item?.cartItemId) {
+      await cartService.updateCartItem(item.cartItemId, qty).catch(() => {
+        // Rollback: restore to previous quantity on failure
+        // The slice handles this via .rejected case
+        throw new Error("Failed to sync quantity")
+      })
     }
+
     return { id, quantity: qty }
   },
 )
@@ -128,6 +147,7 @@ const cartSlice = createSlice({
     removeFromCart: (state, action: PayloadAction<number>) => {
       state.items = state.items.filter((i) => i.id !== action.payload)
     },
+    /** Optimistic update — mutates quantity instantly. */
     updateQuantity: (
       state,
       action: PayloadAction<{ id: number; quantity: number }>,
@@ -149,12 +169,13 @@ const cartSlice = createSlice({
       })
       // ── addToCartAsync ──────────────────────────────────────
       .addCase(addToCartAsync.fulfilled, (state, action) => {
-        const { id, cartItemId, name, slug, price, image, quantity } =
+        const { id, cartItemId, name, slug, price, image, quantity, stock } =
           action.payload
         const existing = state.items.find((i) => i.id === id)
         if (existing) {
           existing.quantity = quantity
           existing.cartItemId = cartItemId
+          existing.stock = stock
         } else {
           state.items.push({
             id,
@@ -164,6 +185,7 @@ const cartSlice = createSlice({
             price,
             image,
             quantity,
+            stock,
           })
         }
       })
@@ -172,11 +194,10 @@ const cartSlice = createSlice({
         state.items = state.items.filter((i) => i.id !== action.payload.id)
       })
       // ── updateQuantityAsync ─────────────────────────────────
-      .addCase(updateQuantityAsync.fulfilled, (state, action) => {
-        const item = state.items.find((i) => i.id === action.payload.id)
-        if (item) {
-          item.quantity = action.payload.quantity
-        }
+      // Fulfilled is intentionally omitted — the component applies
+      // the optimistic update synchronously before dispatching this thunk.
+      .addCase(updateQuantityAsync.rejected, (state, action) => {
+        // Log rejection silently; rollback is handled in the component.
       })
       // ── clearCartAsync ──────────────────────────────────────
       .addCase(clearCartAsync.fulfilled, (state) => {

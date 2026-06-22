@@ -5,6 +5,7 @@ import productsReducer from "./products-slice"
 import ordersReducer from "./orders-slice"
 import usersReducer from "./users-slice"
 import expensesReducer from "./expenses-slice"
+import invoicesReducer from "./invoices-slice"
 
 export const store = configureStore({
   reducer: {
@@ -13,6 +14,7 @@ export const store = configureStore({
     orders: ordersReducer,
     users: usersReducer,
     expenses: expensesReducer,
+    invoices: invoicesReducer,
   },
 })
 
@@ -67,3 +69,13 @@ export const selectExpensesPagination = (state: RootState) => ({
   lastPage: state.expenses.lastPage,
 })
 export const selectExpensesUpdating = (state: RootState) => state.expenses.updatingIds
+
+// Invoices selectors
+export const selectInvoices = (state: RootState) => state.invoices.items
+export const selectInvoicesLoading = (state: RootState) => state.invoices.loading
+export const selectInvoicesUpdating = (state: RootState) => state.invoices.updatingIds
+export const selectInvoicesPagination = (state: RootState) => ({
+  total: state.invoices.total,
+  currentPage: state.invoices.currentPage,
+  lastPage: state.invoices.lastPage,
+})

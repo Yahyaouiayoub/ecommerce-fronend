@@ -1,6 +1,5 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import {
@@ -12,8 +11,9 @@ import {
   Star,
   MessageSquare,
 } from "lucide-react"
-import { getProduct, getProductReviews, createReview, getOrders } from "@/lib/api/services"
+import { getProduct, getProductReviews, createReview, getOrders, getProducts } from "@/lib/api/services"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
+import { StoreImage } from "@/components/store-image"
 import { useApi } from "@/lib/hooks/use-api"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { formatPrice } from "@/lib/utils"
@@ -21,9 +21,10 @@ import { ProductDetailSkeleton } from "@/components/skeletons"
 import { StateMessage } from "@/components/state-message"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
-import type { ProductImage, Review, Order } from "@/lib/types"
+import type { ProductImage, Review, Order, Product } from "@/lib/types"
 import { useAppDispatch } from "@/lib/store"
 import { addToCartAsync } from "@/lib/store/cart-slice"
+import { ProductCard } from "@/components/product-card"
 import { toast } from "sonner"
 
 const getValidImage = (url: string | undefined): string => getImageUrl(url)
@@ -66,7 +67,6 @@ export function ProductDetail({ id }: { id: string }) {
   )
   const [quantity, setQuantity] = useState(1)
   const [activeImage, setActiveImage] = useState(0)
-
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewStats, setReviewStats] = useState({ average_rating: 0, total_reviews: 0, rating_distribution: {} as Record<number, number> })
@@ -226,7 +226,7 @@ export function ProductDetail({ id }: { id: string }) {
       <div className="grid gap-10 lg:grid-cols-2">
         <div className="flex flex-col gap-4">
           <div className="relative aspect-square overflow-hidden rounded-xl border border-border bg-muted">
-            <Image
+            <StoreImage
               src={getValidImage(images[activeImage])}
               alt={product.name}
               fill
@@ -247,7 +247,7 @@ export function ProductDetail({ id }: { id: string }) {
                     activeImage === i ? "border-accent" : "border-border"
                   }`}
                 >
-                  <Image
+                  <StoreImage
                     src={getValidImage(img)}
                     alt=""
                     fill
@@ -263,7 +263,7 @@ export function ProductDetail({ id }: { id: string }) {
         <div className="flex flex-col">
           {product.category?.name && (
             <Link
-              href={`/products?category=${product.category.id}`}
+              href={`/products?category_id=${product.category.id}`}
               className="text-sm font-medium uppercase tracking-wide text-accent hover:underline"
             >
               {product.category.name}
@@ -314,9 +314,18 @@ export function ProductDetail({ id }: { id: string }) {
           )}
 
           <div className="mt-4">
-            <span className={`text-sm font-medium ${soldOut ? "text-destructive" : "text-green-600"}`}>
-              {soldOut ? "Out of Stock" : product.stock > 10 ? "In Stock" : `Only ${product.stock} left`}
-            </span>
+            {soldOut ? (
+              <span className="text-sm font-medium text-destructive">Out of Stock</span>
+            ) : product.stock < 6 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+                Only {product.stock} left in stock
+              </span>
+            ) : (
+              <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                In Stock
+              </span>
+            )}
           </div>
 
           <Separator className="my-6" />
@@ -325,8 +334,9 @@ export function ProductDetail({ id }: { id: string }) {
             {!soldOut && (
               <div className="flex items-center rounded-lg border border-border">
                 <button
-                  className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-l-lg"
+                  className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-l-lg disabled:opacity-30"
                   aria-label="Decrease quantity"
+                  disabled={quantity <= 1}
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 >
                   <Minus className="size-4" />
@@ -335,9 +345,10 @@ export function ProductDetail({ id }: { id: string }) {
                   {quantity}
                 </span>
                 <button
-                  className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-r-lg"
+                  className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-r-lg disabled:opacity-30"
                   aria-label="Increase quantity"
-                  onClick={() => setQuantity((q) => q + 1)}
+                  disabled={quantity >= product.stock}
+                  onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
                 >
                   <Plus className="size-4" />
                 </button>
@@ -371,6 +382,8 @@ export function ProductDetail({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      <RelatedProducts productId={product.id} categoryId={product.category_id} />
 
       {/* Reviews Section */}
       <div className="mt-16 border-t border-border pt-10">
@@ -520,6 +533,82 @@ export function ProductDetail({ id }: { id: string }) {
             ))
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** JSON-LD structured data for the product (SEO). Renders a <script> tag with Product schema. */
+export function ProductDetailJsonLd({ product }: { product: Record<string, unknown> }) {
+  const script = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    image: product.thumbnail || (product as any).images?.[0]?.image_url,
+    sku: product.sku,
+    brand: product.brand
+      ? { "@type": "Brand", name: (product.brand as Record<string, unknown>).name }
+      : undefined,
+    offers: {
+      "@type": "Offer",
+      price: product.price,
+      priceCurrency: "USD",
+      availability: (product.stock as number) > 0
+        ? "https://schema.org/InStock"
+        : "https://schema.org/OutOfStock",
+      url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products/${product.id}`,
+    },
+    aggregateRating: (product as any).reviews_avg_rating
+      ? {
+          "@type": "AggregateRating",
+          ratingValue: (product as any).reviews_avg_rating,
+          reviewCount: (product as any).reviews_count,
+        }
+      : undefined,
+  }, null, 2)
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: script }}
+    />
+  )
+}
+
+function RelatedProducts({
+  productId,
+  categoryId,
+}: {
+  productId: number
+  categoryId?: number
+}) {
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!categoryId) {
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    getProducts({ category_id: categoryId, per_page: 5 })
+      .then((res) => {
+        setProducts(res.data.filter((p) => p.id !== productId).slice(0, 4))
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [productId, categoryId])
+
+  if (loading || products.length === 0) return null
+
+  return (
+    <div className="mt-16 border-t border-border pt-10">
+      <h2 className="text-xl font-semibold tracking-tight">Related Products</h2>
+      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {products.map((p) => (
+          <ProductCard key={p.id} product={p} />
+        ))}
       </div>
     </div>
   )

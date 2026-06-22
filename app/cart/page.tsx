@@ -1,18 +1,19 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
 import { Minus, Plus, ShoppingBag, Trash2 } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
 import { OrderSummary } from "@/components/order-summary"
 import { StateMessage } from "@/components/state-message"
+import { StoreImage } from "@/components/store-image"
 import { toast } from "sonner"
-import { formatPrice } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import { useAppDispatch, useAppSelector, selectCartItems } from "@/lib/store"
 import {
   removeFromCartAsync,
   updateQuantityAsync,
+  updateQuantity,
   clearCartAsync,
 } from "@/lib/store/cart-slice"
 
@@ -52,7 +53,7 @@ export default function CartPage() {
                       href={`/products/${item.id}`}
                       className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
                     >
-                      <Image
+                      <StoreImage
                         src={getImageUrl(item.image)}
                         alt={item.name}
                         fill
@@ -89,18 +90,26 @@ export default function CartPage() {
                       <div className="mt-auto flex items-center justify-between pt-3">
                         <div className="flex items-center rounded-lg border border-border">
                           <button
-                            className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-l-lg"
+                            className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-l-lg disabled:opacity-30"
                             aria-label="Decrease quantity"
-                            onClick={() =>
+                            disabled={item.quantity <= 1}
+                            onClick={() => {
+                              const newQty = item.quantity - 1
+                              // Optimistic: update UI instantly
+                              dispatch(updateQuantity({ id: item.id, quantity: newQty }))
+                              // Background API sync
                               dispatch(
                                 updateQuantityAsync({
                                   id: item.id,
                                   cartItemId: item.cartItemId,
-                                  quantity: item.quantity - 1,
+                                  quantity: newQty,
                                 }),
-                              ).unwrap()
-                                .catch((err) => toast.error(getApiErrorMessage(err, "Could not update quantity.")))
-                            }
+                              ).catch((err) => {
+                                // Rollback on failure
+                                dispatch(updateQuantity({ id: item.id, quantity: item.quantity }))
+                                toast.error(getApiErrorMessage(err, "Could not update quantity."))
+                              })
+                            }}
                           >
                             <Minus className="size-3.5" />
                           </button>
@@ -108,25 +117,42 @@ export default function CartPage() {
                             {item.quantity}
                           </span>
                           <button
-                            className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-r-lg"
+                            className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-r-lg disabled:opacity-30"
                             aria-label="Increase quantity"
-                            onClick={() =>
+                            onClick={() => {
+                              const newQty = item.quantity + 1
+                              // Optimistic: update UI instantly
+                              dispatch(updateQuantity({ id: item.id, quantity: newQty }))
+                              // Background API sync
                               dispatch(
                                 updateQuantityAsync({
                                   id: item.id,
                                   cartItemId: item.cartItemId,
-                                  quantity: item.quantity + 1,
+                                  quantity: newQty,
                                 }),
-                              ).unwrap()
-                                .catch((err) => toast.error(getApiErrorMessage(err, "Could not update quantity.")))
-                            }
+                              ).catch((err) => {
+                                // Rollback on failure
+                                dispatch(updateQuantity({ id: item.id, quantity: item.quantity }))
+                                toast.error(getApiErrorMessage(err, "Could not update quantity."))
+                              })
+                            }}
                           >
                             <Plus className="size-3.5" />
                           </button>
                         </div>
-                        <span className="font-semibold">
-                          {formatPrice(item.price * item.quantity)}
-                        </span>
+                        <div className="text-right">
+                          <span className="font-semibold">
+                            {formatPrice(item.price * item.quantity)}
+                          </span>
+                          {item.stock && (
+                            <p className={cn(
+                              "text-xs mt-0.5",
+                              item.stock < 6 ? "text-amber-600" : "text-muted-foreground"
+                            )}>
+                              {item.stock} in stock
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </li>

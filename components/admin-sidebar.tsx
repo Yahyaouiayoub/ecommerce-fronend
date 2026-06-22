@@ -12,12 +12,14 @@ import {
   Banknote,
   Users,
   LayoutDashboard,
+  Settings2,
   Store,
   ChevronLeft,
   ChevronRight,
   Moon,
   Sun,
   PanelLeft,
+  Receipt,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/sidebar-context"
@@ -29,8 +31,10 @@ const NAV_ITEMS = [
   { href: "/dashboard/categories", label: "Categories", icon: Layers },
   { href: "/dashboard/brands", label: "Brands", icon: Tag },
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingCart },
+  { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
   { href: "/dashboard/carts", label: "Carts", icon: ClipboardList },
   { href: "/dashboard/expenses", label: "Expenses", icon: Banknote },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings2 },
   { href: "/dashboard/users", label: "Users", icon: Users },
 ]
 

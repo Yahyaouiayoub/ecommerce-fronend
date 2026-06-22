@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { ShoppingBag, Plus, MapPin, Check, ChevronDown, Pencil, Trash2, User } from "lucide-react"
+import { ShoppingBag, Plus, MapPin, Check, ChevronDown, Pencil, Trash2, User, Truck } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
 import { OrderSummary } from "@/components/order-summary"
 import { StateMessage } from "@/components/state-message"
@@ -11,16 +11,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { formatPrice } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 import {
   useAppDispatch,
   useAppSelector,
   selectCartItems,
+  selectCartSubtotal,
 } from "@/lib/store"
-import { clearCart } from "@/lib/store/cart-slice"
-import { createOrder, getAddresses, createAddress, updateAddress, deleteAddress, type CheckoutPayload } from "@/lib/api/services"
+import { clearCartAsync } from "@/lib/store/cart-slice"
+import { createOrder, getAddresses, createAddress, updateAddress, deleteAddress, getPublicSettings, getPublicShippingMethods, type CheckoutPayload } from "@/lib/api/services"
 import { useAuth } from "@/lib/hooks/use-auth"
-import type { Address } from "@/lib/types"
+import { useApi } from "@/lib/hooks/use-api"
+import type { Address, PublicSettings, ShippingSettings, ShippingMethod } from "@/lib/types"
 import { toast } from "sonner"
 
 const PAYMENT_METHODS = [
@@ -30,12 +32,23 @@ const PAYMENT_METHODS = [
 
 export default function CheckoutPage() {
   const items = useAppSelector(selectCartItems)
+  const subtotal = useAppSelector(selectCartSubtotal)
   const dispatch = useAppDispatch()
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
 
   const [submitting, setSubmitting] = useState(false)
   const [payment, setPayment] = useState("cod")
+  const [selectedShippingMethodId, setSelectedShippingMethodId] = useState<number | null>(null)
+  const { data: settings } = useApi<PublicSettings>(() => getPublicSettings(), [])
+  const { data: shippingMethods } = useApi<ShippingMethod[]>(() => getPublicShippingMethods(), [])
+  const shipSettings: ShippingSettings = settings?.shipping ?? {
+    enabled: true,
+    free_shipping: true,
+    free_shipping_min: 75,
+    standard_cost: 8,
+    message: "Free shipping on orders over $75",
+  }
 
   // Authenticated user: address state
   const [addresses, setAddresses] = useState<Address[]>([])
@@ -89,13 +102,21 @@ export default function CheckoutPage() {
     }
   }, [user])
 
-  // Pre-fill guest email from auth user
-  useEffect(() => {
-    if (user && user.email) {
-      setGuestForm((prev) => ({ ...prev, guest_email: user.email, guest_name: user.full_name ?? "" }))
-    }
-  }, [user])
+  function getSelectedShippingMethod(): ShippingMethod | undefined {
+    return shippingMethods?.find(m => m.id === selectedShippingMethodId) ?? shippingMethods?.[0]
+  }
 
+  function getShippingCost(method: ShippingMethod): number {
+    if (shipSettings.free_shipping && subtotal >= shipSettings.free_shipping_min) return 0
+    return method.cost
+  }
+
+  // Auto-select first available shipping method
+  useEffect(() => {
+    if (shippingMethods && shippingMethods.length > 0 && !selectedShippingMethodId) {
+      setSelectedShippingMethodId(shippingMethods[0].id)
+    }
+  }, [shippingMethods, selectedShippingMethodId])
 
 
   function resetAddressForm() {
@@ -202,15 +223,18 @@ export default function CheckoutPage() {
     setSubmitting(true)
     try {
       let payload: CheckoutPayload
+      const shippingMethodId = getSelectedShippingMethod()?.id
 
       if (user) {
         payload = {
           payment_method: payment,
+          shipping_method_id: shippingMethodId,
           address_id: selectedAddressId!,
         }
       } else {
         payload = {
           payment_method: payment,
+          shipping_method_id: shippingMethodId,
           guest_name: guestForm.guest_name,
           guest_email: guestForm.guest_email,
           guest_phone: guestForm.guest_phone || undefined,
@@ -224,7 +248,8 @@ export default function CheckoutPage() {
       }
 
       const order = await createOrder(payload)
-      dispatch(clearCart())
+      // Clear cart on server first, then redirect
+      await dispatch(clearCartAsync()).unwrap()
       toast.success("Order placed successfully")
       router.push(`/order-confirmation/${order.id}`)
     } catch (err: unknown) {
@@ -662,6 +687,63 @@ export default function CheckoutPage() {
               )}
             </section>
 
+            {/* Shipping method */}
+            {shipSettings.enabled && (
+              <section className="rounded-xl border border-border bg-card p-6">
+                <div className="flex items-center gap-2">
+                  <Truck className="size-4 text-muted-foreground" />
+                  <h2 className="text-lg font-semibold">Shipping method</h2>
+                </div>
+                {!shippingMethods || shippingMethods.length === 0 ? (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    No shipping methods available.
+                  </p>
+                ) : (
+                  <div className="mt-4 flex flex-col gap-2">
+                    {shippingMethods.map((method) => {
+                      const cost = getShippingCost(method)
+                      return (
+                        <label
+                          key={method.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-3 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/5"
+                        >
+                          <input
+                            type="radio"
+                            name="shipping_method"
+                            value={method.id}
+                            checked={selectedShippingMethodId === method.id}
+                            onChange={() => setSelectedShippingMethodId(method.id)}
+                            className="accent-accent"
+                          />
+                          <div className="flex flex-1 items-center justify-between">
+                            <div>
+                              <span className="font-medium">{method.name}</span>
+                              {method.estimated_days && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  ~{method.estimated_days} days
+                                </span>
+                              )}
+                              {method.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{method.description}</p>
+                              )}
+                            </div>
+                            <span className="font-medium shrink-0 ml-4">
+                              {cost === 0 ? "Free" : formatPrice(cost)}
+                            </span>
+                          </div>
+                        </label>
+                      )
+                    })}
+                    {shipSettings.free_shipping && subtotal > 0 && subtotal < shipSettings.free_shipping_min && (
+                      <p className="text-xs text-muted-foreground px-4">
+                        Free shipping on orders over {formatPrice(shipSettings.free_shipping_min)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Payment method */}
             <section className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold">Payment method</h2>
@@ -691,7 +773,7 @@ export default function CheckoutPage() {
 
           {/* Summary */}
           <div className="lg:col-span-1">
-            <OrderSummary>
+            <OrderSummary selectedShippingMethod={getSelectedShippingMethod()} selectedShippingCost={getSelectedShippingMethod() ? getShippingCost(getSelectedShippingMethod()!) : 0}>
               <Button
                 type="submit"
                 size="lg"
@@ -709,9 +791,19 @@ export default function CheckoutPage() {
                   key={item.id}
                   className="flex items-center justify-between gap-2 text-muted-foreground"
                 >
-                  <span className="line-clamp-1">
-                    {item.name} × {item.quantity}
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="line-clamp-1">
+                      {item.name} × {item.quantity}
+                    </span>
+                    {item.stock !== undefined && item.stock < 6 && (
+                      <p className={cn(
+                        "text-xs mt-0.5",
+                        item.stock === 0 ? "text-destructive" : "text-amber-600"
+                      )}>
+                        {item.stock === 0 ? "Out of stock" : `Only ${item.stock} left`}
+                      </p>
+                    )}
+                  </div>
                   <span className="shrink-0 font-medium text-foreground">
                     {formatPrice(item.price * item.quantity)}
                   </span>

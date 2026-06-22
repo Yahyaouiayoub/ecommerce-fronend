@@ -11,6 +11,8 @@ import type {
   InvoicePayment,
   InvoicePaymentOptions,
   OrderPaymentSummary,
+  InvoiceStats,
+  InvoiceDetailResponse,
   Expense,
   ExpenseMonthData,
   ExpenseCategoryData,
@@ -29,6 +31,9 @@ import type {
   ProductReviewsResponse,
   CreateReviewPayload,
   AdminCart,
+  PublicSettings,
+  AdminSettingsResponse,
+  ShippingMethod,
 } from "@/lib/types"
 
 // =========================
@@ -87,6 +92,39 @@ export async function getMe() {
 export async function updateProfile(payload: UpdateProfilePayload) {
   const { data } = await api.put<{ user: User }>("/profile", payload)
   return data.user
+}
+
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password: string
+  new_password_confirmation: string
+}
+
+export async function changePassword(payload: ChangePasswordPayload) {
+  const { data } = await api.put<{ message: string }>("/profile/password", payload)
+  return data
+}
+
+// =========================
+// SESSION MANAGEMENT
+// =========================
+
+export interface Session {
+  id: number
+  name: string
+  is_current: boolean
+  created_at: string
+  last_used_at?: string
+}
+
+export async function getSessions() {
+  const { data } = await api.get<{ sessions: Session[] }>("/sessions")
+  return data.sessions
+}
+
+export async function revokeSession(id: number) {
+  const { data } = await api.delete<{ message: string }>(`/sessions/${id}`)
+  return data
 }
 
 // =========================
@@ -153,10 +191,13 @@ export interface ProductQuery {
   page?: number
   per_page?: number
   category_id?: number
+  brand_id?: number
   search?: string
   sort?: "newest" | "price_asc" | "price_desc" | "popular"
   min_price?: number
   max_price?: number
+  new_arrivals?: boolean
+  best_sellers?: boolean
 }
 
 export async function getProducts(params: ProductQuery = {}) {
@@ -166,6 +207,72 @@ export async function getProducts(params: ProductQuery = {}) {
 
 export async function getProduct(id: number) {
   const { data } = await api.get<Product>(`/products/${id}`)
+  return data
+}
+
+// =========================
+// TWO-FACTOR AUTHENTICATION
+// =========================
+
+export interface TwoFactorSetup {
+  enabled: boolean
+  secret?: string
+  qr_code_url?: string
+  recovery_codes?: string[]
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean
+  message?: string
+}
+
+export async function getTwoFactorStatus() {
+  const { data } = await api.get<TwoFactorStatus>("/2fa/status")
+  return data
+}
+
+export async function enableTwoFactor() {
+  const { data } = await api.post<TwoFactorSetup>("/2fa/enable")
+  return data
+}
+
+export async function confirmTwoFactor(code: string) {
+  const { data } = await api.post<{
+    message: string
+    recovery_codes: string[]
+  }>("/2fa/confirm", { code })
+  return data
+}
+
+export async function disableTwoFactor(current_password: string) {
+  const { data } = await api.post<{ message: string }>("/2fa/disable", { current_password })
+  return data
+}
+
+export async function regenerateRecoveryCodes(current_password: string) {
+  const { data } = await api.post<{
+    message: string
+    recovery_codes: string[]
+  }>("/2fa/recovery-codes", { current_password })
+  return data
+}
+
+export async function verifyTwoFactorLogin(challenge_token: string, code: string) {
+  const { data } = await api.post<{
+    message: string
+    user: User
+    token: string
+  }>("/2fa/verify-login", { challenge_token, code })
+  return data
+}
+
+export async function getProductPriceRange() {
+  const { data } = await api.get<{ min_price: number; max_price: number }>("/products/price-range")
+  return data
+}
+
+export async function getBestSellers() {
+  const { data } = await api.get<Product[]>("/products/best-sellers")
   return data
 }
 
@@ -259,6 +366,7 @@ export async function setDefaultAddress(id: number) {
 // =========================
 export interface CheckoutPayload {
   payment_method: string
+  shipping_method_id?: number
   address_id?: number
   notes?: string
   // Guest checkout fields
@@ -423,6 +531,81 @@ export async function adminUpdateOrderStatus(id: number, status: string) {
 }
 
 // =========================
+// ADMIN: INVOICES
+// =========================
+
+export interface AdminInvoiceQuery {
+  status?: string
+  payment_method?: string
+  search?: string
+  date_from?: string
+  date_to?: string
+  paid_from?: string
+  paid_to?: string
+  page?: number
+  per_page?: number
+}
+
+export async function adminGetInvoices(params?: AdminInvoiceQuery) {
+  const { data } = await api.get<PaginatedResponse<Invoice>>("/admin/invoices", { params })
+  return data
+}
+
+export async function adminGetInvoice(id: number) {
+  const { data } = await api.get<InvoiceDetailResponse>("/admin/invoices/" + id)
+  return data
+}
+
+export async function adminUpdateInvoiceStatus(id: number, status: string) {
+  const { data } = await api.put<{ message: string; data: Invoice }>("/admin/invoices/" + id + "/status", { status })
+  return data
+}
+
+export async function adminGetInvoiceStats() {
+  const { data } = await api.get<InvoiceStats>("/admin/invoices/stats")
+  return data
+}
+
+export async function adminCreateInvoice(payload: {
+  order_id: number
+  total_amount: number
+  due_date?: string
+  notes?: string
+}) {
+  const { data } = await api.post<{ message: string; data: Invoice }>("/admin/invoices", payload)
+  return data
+}
+
+export async function adminUpdateInvoice(id: number, payload: {
+  total_amount?: number
+  due_date?: string
+  notes?: string
+}) {
+  const { data } = await api.put<{ message: string; data: Invoice }>("/admin/invoices/" + id, payload)
+  return data
+}
+
+export async function adminDeleteInvoice(id: number) {
+  const { data } = await api.delete<{ message: string }>("/admin/invoices/" + id)
+  return data
+}
+
+export async function adminSendInvoice(id: number) {
+  const { data } = await api.post<{ message: string }>("/admin/invoices/" + id + "/send")
+  return data
+}
+
+export async function getUserInvoices(params?: { order_id?: number; status?: string }) {
+  const { data } = await api.get<{ data: Invoice[] }>("/invoices", { params })
+  return data.data
+}
+
+export async function getUserInvoice(id: number) {
+  const { data } = await api.get<{ data: Invoice }>("/invoices/" + id)
+  return data.data
+}
+
+// =========================
 // ADMIN: INVOICES & PAYMENTS
 // =========================
 
@@ -509,6 +692,15 @@ export async function adminGetExpenseCategories() {
 }
 
 // =========================
+// PAYMENT HISTORY
+// =========================
+
+export async function getPayments() {
+  const { data } = await api.get<{ data: InvoicePayment[] }>("/payments")
+  return data.data
+}
+
+// =========================
 // REVIEWS
 // =========================
 
@@ -550,6 +742,68 @@ export async function adminDeleteCart(ownerKey: string) {
 
 export async function adminConvertCartToUser(ownerKey: string, userId: number) {
   const { data } = await api.post<{ message: string; cart: AdminCart }>(`/admin/carts/${ownerKey}/convert`, { user_id: userId })
+  return data
+}
+
+// =========================
+// SETTINGS
+// =========================
+
+export async function getPublicSettings() {
+  const { data } = await api.get<PublicSettings>("/settings/public")
+  return data
+}
+
+export async function adminGetSettings() {
+  const { data } = await api.get<AdminSettingsResponse>("/admin/settings")
+  return data
+}
+
+export async function adminUpdateSettings(settings: Record<string, string>) {
+  const { data } = await api.put<AdminSettingsResponse>("/admin/settings", { settings })
+  return data
+}
+
+// =========================
+// SHIPPING METHODS (Admin CRUD)
+// =========================
+
+export async function adminGetShippingMethods() {
+  const { data } = await api.get<ShippingMethod[]>("/admin/shipping-methods")
+  return data
+}
+
+export async function adminCreateShippingMethod(payload: {
+  name: string
+  description?: string
+  cost: number
+  estimated_days?: number
+}) {
+  const { data } = await api.post<{ message: string; shipping_method: ShippingMethod }>("/admin/shipping-methods", payload)
+  return data
+}
+
+export async function adminUpdateShippingMethod(id: number, payload: Partial<{
+  name: string
+  description?: string
+  cost: number
+  estimated_days?: number
+}>) {
+  const { data } = await api.put<{ message: string; shipping_method: ShippingMethod }>(`/admin/shipping-methods/${id}`, payload)
+  return data
+}
+
+export async function adminDeleteShippingMethod(id: number) {
+  const { data } = await api.delete<{ message: string }>(`/admin/shipping-methods/${id}`)
+  return data
+}
+
+// =========================
+// SHIPPING METHODS (Public — active only)
+// =========================
+
+export async function getPublicShippingMethods() {
+  const { data } = await api.get<ShippingMethod[]>("/shipping-methods")
   return data
 }
 

@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
+import { usePolling } from "@/lib/hooks/use-polling"
 import { adminGetOrders } from "@/lib/api/services"
 import { formatPrice } from "@/lib/utils"
 import { getApiErrorMessage } from "@/lib/api/client"
@@ -82,6 +83,9 @@ export default function AdminOrdersPage() {
     () => adminGetOrders(Object.keys(queryParams).length > 0 ? queryParams : undefined),
     [queryParams],
   )
+
+  // Auto-poll orders every 30 seconds
+  usePolling(reload, 30_000)
 
   // Apply client-side payment status filter
   const filteredData = useMemo(() => {

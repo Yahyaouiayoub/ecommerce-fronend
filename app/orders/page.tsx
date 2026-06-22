@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
-import { Package } from "lucide-react"
+import { Package, Download, Eye, FileText } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
+import { StoreImage } from "@/components/store-image"
 import { useApi } from "@/lib/hooks/use-api"
 import { getImageUrl } from "@/lib/api/client"
 import { getOrders } from "@/lib/api/services"
 import { useAuth } from "@/lib/hooks/use-auth"
+import { openPdfInNewTab, downloadPdf } from "@/lib/pdf"
 import type { Order } from "@/lib/types"
 import { formatPrice } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -106,7 +107,7 @@ export default function OrdersPage() {
                   {order.items?.map((item) => (
                     <div key={item.id} className="flex items-center gap-3">
                       <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
-                        <Image
+                        <StoreImage
                           src={getImageUrl(
                             item.product.thumbnail ||
                               item.product.images?.[0]?.image_url,
@@ -129,6 +130,59 @@ export default function OrdersPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* Invoices section for customers */}
+                {order.invoices && order.invoices.length > 0 && (
+                  <div className="mt-4 border-t border-border pt-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                      Invoices ({order.invoices.length})
+                    </p>
+                    <div className="space-y-2">
+                      {order.invoices.map((inv) => (
+                        <div
+                          key={inv.id}
+                          className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{inv.invoice_number}</span>
+                            <Badge className={`text-[10px] px-1.5 py-0 ${
+                              inv.status === "paid"
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                : inv.status === "unpaid"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                            }`}>
+                              {inv.status_label}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Link
+                              href={`/invoices/${inv.id}`}
+                              className="inline-flex size-7 items-center justify-center rounded-md hover:bg-muted transition-colors"
+                              title="View invoice"
+                            >
+                              <FileText className="size-3.5" />
+                            </Link>
+                            <button
+                              onClick={() => openPdfInNewTab(`/invoices/${inv.id}/pdf`)}
+                              className="inline-flex size-7 items-center justify-center rounded-md hover:bg-muted transition-colors"
+                              title="View PDF"
+                            >
+                              <Eye className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => downloadPdf(`/invoices/${inv.id}/download`, `invoice-${inv.invoice_number}.pdf`)}
+                              className="inline-flex size-7 items-center justify-center rounded-md hover:bg-muted transition-colors"
+                              title="Download PDF"
+                            >
+                              <Download className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
         </div>

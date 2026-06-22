@@ -1,8 +1,8 @@
-import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import type { Category } from "@/lib/types"
 import { getImageUrl } from "@/lib/api/client"
+import { StoreImage } from "@/components/store-image"
 import { cn } from "@/lib/utils"
 
 interface CategoryCardProps {
@@ -15,13 +15,13 @@ export function CategoryCard({ category, className }: CategoryCardProps) {
 
   return (
     <Link
-      href={`/products?category=${category.slug}`}
+      href={`/products?category_id=${category.id}`}
       className={cn(
         "group relative flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-xl border border-border",
         className,
       )}
     >
-      <Image
+      <StoreImage
         src={image}
         alt={category.name}
         fill

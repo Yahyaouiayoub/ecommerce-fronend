@@ -1,10 +1,11 @@
 "use client"
 
-import Image from "next/image"
 import Link from "next/link"
-import { ShoppingBag } from "lucide-react"
+import { ShoppingBag, Star } from "lucide-react"
 import type { Product } from "@/lib/types"
 import { getImageUrl } from "@/lib/api/client"
+import { StoreImage } from "@/components/store-image"
+import { memo } from "react"
 import { cn, formatPrice } from "@/lib/utils"
 import { useAppDispatch } from "@/lib/store"
 import { addToCartAsync } from "@/lib/store/cart-slice"
@@ -15,13 +16,15 @@ interface ProductCardProps {
   className?: string
 }
 
-export function ProductCard({ product, className }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product, className }: ProductCardProps) {
   const dispatch = useAppDispatch()
   
   const image = getImageUrl(
     product.thumbnail || product.images?.[0]?.image_url,
   )
   const onSale = false
+  const avgRating = product.reviews_avg_rating ?? 0
+  const reviewCount = product.reviews_count ?? 0
 
   function handleAdd(e: React.MouseEvent) {
     e.preventDefault()
@@ -44,7 +47,7 @@ export function ProductCard({ product, className }: ProductCardProps) {
       )}
     >
       <div className="relative aspect-square overflow-hidden bg-muted">
-        <Image
+        <StoreImage
           src={image}
           alt={product.name}
           fill
@@ -56,11 +59,15 @@ export function ProductCard({ product, className }: ProductCardProps) {
             Sale
           </span>
         )}
-        {product.stock === 0 && (
+        {product.stock === 0 ? (
           <span className="absolute right-3 top-3 rounded-full bg-foreground/80 px-2.5 py-1 text-xs font-semibold text-background">
             Sold out
           </span>
-        )}
+        ) : product.stock < 6 ? (
+          <span className="absolute right-3 top-3 rounded-full bg-amber-500/90 px-2.5 py-1 text-xs font-semibold text-white">
+            Only {product.stock} left
+          </span>
+        ) : null}
       </div>
 
       <div className="flex flex-1 flex-col p-4">
@@ -72,6 +79,37 @@ export function ProductCard({ product, className }: ProductCardProps) {
         <h3 className="mt-1 line-clamp-1 text-sm font-medium text-foreground">
           {product.name}
         </h3>
+
+        {/* Rating */}
+        {reviewCount > 0 ? (
+          <div className="mt-1 flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className={`size-3 ${
+                    star <= Math.round(avgRating)
+                      ? "fill-amber-400 text-amber-400"
+                      : "fill-muted text-muted-foreground/30"
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">({reviewCount})</span>
+          </div>
+        ) : (
+          <div className="mt-1 flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Star
+                  key={star}
+                  className="size-3 fill-muted text-muted-foreground/30"
+                />
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">(0)</span>
+          </div>
+        )}
 
         <div className="mt-auto flex items-center justify-between pt-3">
           <div className="flex items-baseline gap-2">
@@ -96,4 +134,4 @@ export function ProductCard({ product, className }: ProductCardProps) {
       </div>
     </Link>
   )
-}
+})

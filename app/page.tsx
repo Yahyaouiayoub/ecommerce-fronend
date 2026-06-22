@@ -2,27 +2,18 @@ import Image from "next/image"
 import Link from "next/link"
 import { ArrowRight, Leaf, ShieldCheck, Truck } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
+import { BestSellers } from "@/components/sections/best-sellers"
 import { FeaturedProducts } from "@/components/sections/featured-products"
 import { CategoriesPreview } from "@/components/sections/categories-preview"
 import { HomepageCta } from "@/components/homepage-cta"
+import { HomepagePerks } from "@/components/homepage-perks"
+import type { Metadata } from "next"
 
-const PERKS = [
-  {
-    icon: Truck,
-    title: "Free shipping",
-    description: "On all orders over $75, delivered fast.",
+export const metadata: Metadata = {
+  alternates: {
+    canonical: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   },
-  {
-    icon: ShieldCheck,
-    title: "Secure checkout",
-    description: "Your payments are encrypted and protected.",
-  },
-  {
-    icon: Leaf,
-    title: "Sustainably made",
-    description: "Responsibly sourced, built to last.",
-  },
-]
+}
 
 export default function HomePage() {
   return (
@@ -72,26 +63,9 @@ export default function HomePage() {
       </section>
 
       {/* Perks */}
-      <section className="mx-auto max-w-7xl px-4 pt-12 sm:px-6 lg:px-8">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {PERKS.map((perk) => (
-            <div
-              key={perk.title}
-              className="flex items-start gap-3 rounded-xl border border-border bg-card p-5"
-            >
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                <perk.icon className="size-5" />
-              </div>
-              <div>
-                <h3 className="font-medium text-foreground">{perk.title}</h3>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {perk.description}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <HomepagePerks />
+
+      <BestSellers />
 
       <CategoriesPreview />
       <FeaturedProducts />

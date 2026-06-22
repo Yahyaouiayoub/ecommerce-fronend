@@ -5,11 +5,11 @@ import type { User } from "@/lib/types"
 import { getToken, setToken, removeToken } from "@/lib/api/client"
 import { useAppDispatch } from "@/lib/store"
 import { fetchCartFromServer, clearCart } from "@/lib/store/cart-slice"
-import {
-  getMe,
+import { getMe,
   login as loginRequest,
   logout as logoutRequest,
   register as registerRequest,
+  verifyTwoFactorLogin,
   type LoginPayload,
   type RegisterPayload,
 } from "@/lib/api/services"
@@ -77,12 +77,33 @@ export function useAuth() {
     }
   }, [dispatch])
 
-  const login = useCallback(async (payload: LoginPayload) => {
+  const login = useCallback(async (payload: LoginPayload): Promise<{ user: User; two_factor_required?: boolean; challenge_token?: string }> => {
     const res = await loginRequest(payload)
+
+    // If 2FA is required, return challenge info without setting token
+    if ((res as any).two_factor_required) {
+      return {
+        user: res.user,
+        two_factor_required: true,
+        challenge_token: (res as any).challenge_token,
+      }
+    }
+
     setToken(res.token)
     setUser(res.user)
 
     // Fetch user's cart from server (backend mergeGuestCart already merged guest cart)
+    await dispatch(fetchCartFromServer()).unwrap()
+
+    return { user: res.user }
+  }, [dispatch])
+
+  const verify2FA = useCallback(async (challenge_token: string, code: string) => {
+    const res = await verifyTwoFactorLogin(challenge_token, code)
+    setToken(res.token)
+    setUser(res.user)
+
+    // Fetch user's cart from server
     await dispatch(fetchCartFromServer()).unwrap()
 
     return res.user
@@ -113,5 +134,5 @@ export function useAuth() {
     localStorage.removeItem(SESSION_KEY)
   }, [dispatch])
 
-  return { user, loading, login, register, logout, refresh, setUser }
+  return { user, loading, login, register, logout, refresh, setUser, verify2FA }
 }

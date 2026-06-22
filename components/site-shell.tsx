@@ -6,7 +6,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <Navbar />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 animate-page-in">{children}</main>
       <Footer />
     </div>
   )
