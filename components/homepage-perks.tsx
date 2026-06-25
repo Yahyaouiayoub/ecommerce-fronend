@@ -5,31 +5,33 @@ import { getPublicSettings } from "@/lib/api/services"
 import { useApi } from "@/lib/hooks/use-api"
 import { formatPrice } from "@/lib/utils"
 import type { PublicSettings } from "@/lib/types"
+import { useTranslations } from "next-intl"
 
 export function HomepagePerks() {
+  const t = useTranslations("home")
   const { data } = useApi<PublicSettings>(() => getPublicSettings(), [])
 
   const shippingMsg = data?.shipping?.enabled
     ? data.shipping.free_shipping
-      ? `Free shipping on orders over ${formatPrice(data.shipping.free_shipping_min)}`
+      ? t("perks_free_shipping_on", { amount: formatPrice(data.shipping.free_shipping_min) })
       : data.shipping.message
-    : "Fast shipping on all orders"
+    : t("perks_free_shipping_desc")
 
   const PERKS = [
     {
       icon: Truck,
-      title: "Free shipping",
+      title: t("perks_free_shipping"),
       description: shippingMsg,
     },
     {
       icon: ShieldCheck,
-      title: "Secure checkout",
-      description: "Your payments are encrypted and protected.",
+      title: t("perks_secure_checkout"),
+      description: t("perks_secure_checkout_desc"),
     },
     {
       icon: Leaf,
-      title: "Sustainably made",
-      description: "Responsibly sourced, built to last.",
+      title: t("perks_sustainably_made"),
+      description: t("perks_sustainably_made_desc"),
     },
   ]
 

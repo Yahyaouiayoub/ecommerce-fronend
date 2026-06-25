@@ -2,8 +2,10 @@
 
 import { CURRENCIES, type CurrencyCode } from "@/lib/currency/config"
 import { useCurrency } from "@/lib/currency/context"
+import { useTranslations } from "next-intl"
 
 export function CurrencySwitcher() {
+  const t = useTranslations("currency")
   const { currency, setCurrency } = useCurrency()
 
   return (
@@ -17,7 +19,7 @@ export function CurrencySwitcher() {
               ? "bg-accent text-accent-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
           }`}
-          title={c.label}
+          title={t(c.code)}
         >
           {c.code}
         </button>

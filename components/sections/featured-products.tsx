@@ -7,8 +7,10 @@ import { useApi } from "@/lib/hooks/use-api"
 import { ProductCard } from "@/components/product-card"
 import { ProductGridSkeleton } from "@/components/skeletons"
 import { StateMessage } from "@/components/state-message"
+import { useTranslations } from "next-intl"
 
 export function FeaturedProducts() {
+  const t = useTranslations("home")
   const { data, loading, error, reload } = useApi(
     () => getFeaturedProducts(),
     [],
@@ -19,17 +21,17 @@ export function FeaturedProducts() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Featured products
+            {t("featured_title")}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            Hand-picked favorites from our latest collection.
+            {t("featured_description")}
           </p>
         </div>
         <Link 
           href="/products" 
           className="hidden sm:inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-medium hover:bg-muted hover:text-foreground transition-colors"
         >
-          View all
+          {t("featured_view_all")}
         </Link>
       </div>
 

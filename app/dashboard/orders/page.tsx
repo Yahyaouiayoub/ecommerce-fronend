@@ -10,6 +10,8 @@ import {
   X,
   ExternalLink,
   Filter,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,7 +27,7 @@ import { formatPrice } from "@/lib/utils"
 import { getApiErrorMessage } from "@/lib/api/client"
 import { useAppDispatch, useAppSelector, selectOrdersUpdating } from "@/lib/store"
 import { updateOrderStatus, optimisticStatusUpdate, rollbackOrder } from "@/lib/store/orders-slice"
-import type { Order } from "@/lib/types"
+import type { Order, PaginatedResponse } from "@/lib/types"
 import { toast } from "sonner"
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -70,29 +72,35 @@ export default function AdminOrdersPage() {
   const reduxUpdatingIds = useAppSelector(selectOrdersUpdating)
   const [optimisticStatuses, setOptimisticStatuses] = useState<Record<number, string>>({})
   const [showFilters, setShowFilters] = useState(false)
+  const [page, setPage] = useState(1)
 
   const queryParams = useMemo(() => {
-    const params: Record<string, string> = {}
+    const params: Record<string, string | number> = {}
     if (statusFilter) params.status = statusFilter
     if (search) params.search = search
     if (dateFrom) params.date_from = dateFrom
     if (dateTo) params.date_to = dateTo
+    params.page = page
+    params.per_page = 20
     return params
-  }, [statusFilter, search, dateFrom, dateTo])
+  }, [statusFilter, search, dateFrom, dateTo, page])
 
-  const { data, loading, error, reload } = useApi<Order[]>(
-    () => adminGetOrders(Object.keys(queryParams).length > 0 ? queryParams : undefined),
+  const { data, loading, error, reload } = useApi<PaginatedResponse<Order>>(
+    () => adminGetOrders(queryParams),
     [queryParams],
   )
+
+  const orders = data?.data ?? []
+  const totalOrders = data?.total ?? 0
+  const lastPage = data?.last_page ?? 1
 
   // Auto-poll orders every 30 seconds
   usePolling(reload, 30_000)
 
-  // Apply client-side payment status filter
-  const filteredData = useMemo(() => {
-    if (!data) return data
-    if (!paymentStatusFilter) return data
-    return data.filter((order) => {
+  // Apply client-side payment status filter (over the current page only)
+  const filteredOrders = useMemo(() => {
+    if (!paymentStatusFilter) return orders
+    return orders.filter((order) => {
       const invoices = order.invoices ?? []
       if (invoices.length === 0) return paymentStatusFilter === "unpaid"
       const allPaid = invoices.every((inv) => inv.status === "paid")
@@ -102,7 +110,7 @@ export default function AdminOrdersPage() {
       if (paymentStatusFilter === "partial") return !allPaid && somePaid
       return true
     })
-  }, [data, paymentStatusFilter])
+  }, [orders, paymentStatusFilter])
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login")
@@ -148,6 +156,7 @@ export default function AdminOrdersPage() {
     setSearch("")
     setDateFrom("")
     setDateTo("")
+    setPage(1)
   }
 
   const hasActiveFilters = statusFilter || paymentStatusFilter || search || dateFrom || dateTo
@@ -155,7 +164,7 @@ export default function AdminOrdersPage() {
   if (authLoading) return null
 
   // Group/dashboard split
-  const displayOrders = filteredData ?? data ?? []
+  const displayOrders = filteredOrders
   const pendingOrders = displayOrders.filter((o) => o.status === "pending" || o.status === "processing")
   const otherOrders = displayOrders.filter((o) => o.status !== "pending" && o.status !== "processing")
 
@@ -165,8 +174,8 @@ export default function AdminOrdersPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {data ? `${data.length} order${data.length !== 1 ? "s" : ""}` : "Manage customer orders"}
-              {hasActiveFilters && data && ` — filtered`}
+              {totalOrders > 0 ? `${totalOrders} order${totalOrders !== 1 ? "s" : ""}` : "Manage customer orders"}
+              {hasActiveFilters && ` — filtered`}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -189,7 +198,7 @@ export default function AdminOrdersPage() {
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Order Status</label>
                 <Select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
                   className="w-full"
                 >
                   <option value="">All statuses</option>
@@ -220,18 +229,18 @@ export default function AdminOrdersPage() {
                   <Input
                     placeholder="Name, email, order #..."
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                     className="pl-8"
                   />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">From</label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-36" />
+                <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1) }} className="w-36" />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">To</label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-36" />
+                <Input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1) }} className="w-36" />
               </div>
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -256,7 +265,7 @@ export default function AdminOrdersPage() {
             title="Couldn't load orders"
             action={<Button onClick={reload} variant="outline">Try again</Button>}
           />
-        ) : !data || data.length === 0 ? (
+        ) : !orders || orders.length === 0 ? (
           <StateMessage
             icon={<ShoppingCart className="size-6" />}
             title="No orders found"
@@ -287,6 +296,21 @@ export default function AdminOrdersPage() {
                 <div className="space-y-2">
                   {otherOrders.map((order) => renderOrderCard(order, true))}
                 </div>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {lastPage > 1 && (
+              <div className="mt-8 flex items-center justify-center gap-3">
+                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                  <ChevronLeft className="size-4" /> Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {lastPage}
+                </span>
+                <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>
+                  Next <ChevronRight className="size-4" />
+                </Button>
               </div>
             )}
           </>

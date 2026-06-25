@@ -27,8 +27,6 @@ import { getImageUrl } from "@/lib/api/client"
 import { useApi } from "@/lib/hooks/use-api"
 import type { PublicSettings } from "@/lib/types"
 import { useTranslations } from "next-intl"
-import { LanguageSwitcher } from "@/components/language-switcher"
-import { CurrencySwitcher } from "@/components/currency-switcher"
 
 const NAV_LINKS = [
   { href: "/", labelKey: "home" },
@@ -69,7 +67,7 @@ export function Navbar() {
                 {logoUrl ? (
                   <img
                     src={getImageUrl(logoUrl)}
-                    alt="Store logo"
+                    alt={t("store_logo")}
                     className="h-7 w-auto max-w-28 object-contain"
                   />
                 ) : (
@@ -102,7 +100,7 @@ export function Navbar() {
           {logoUrl ? (
             <img
               src={getImageUrl(logoUrl)}
-              alt="Store logo"
+              alt={t("store_logo")}
               className="h-8 w-auto max-w-32 object-contain"
             />
           ) : (
@@ -148,10 +146,7 @@ export function Navbar() {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 lg:ml-2">
-          {/* Currency Switcher */}
-          <CurrencySwitcher />
-          {/* Language Switcher */}
-          <LanguageSwitcher />
+          {/* Theme Toggle */}
           {/* Theme Toggle */}
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}

@@ -7,8 +7,10 @@ import { useApi } from "@/lib/hooks/use-api"
 import { CategoryCard } from "@/components/category-card"
 import { CategoryGridSkeleton } from "@/components/skeletons"
 import { StateMessage } from "@/components/state-message"
+import { useTranslations } from "next-intl"
 
 export function CategoriesPreview() {
+  const t = useTranslations("home")
   const { data, loading, error, reload } = useApi(() => getCategories(), [])
 
   return (
@@ -16,17 +18,17 @@ export function CategoriesPreview() {
       <div className="flex items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-            Shop by category
+            {t("categories_title")}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            Find exactly what you&apos;re looking for.
+            {t("categories_description")}
           </p>
         </div>
         <Link 
           href="/categories" 
           className="hidden sm:inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-medium hover:bg-muted hover:text-foreground transition-colors"
         >
-          All categories
+          {t("categories_all")}
         </Link>
       </div>
 

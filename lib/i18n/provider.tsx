@@ -65,10 +65,20 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [mounted, locale])
 
   if (!mounted || !messages) {
-    // Render children in default locale while loading
+    // Render children with empty messages while loading.
+    // getMessageFallback returns a visible placeholder instead of throwing.
+    // onError silences the MISSING_MESSAGE dev warnings during this brief window.
     return (
       <LocaleContext.Provider value={{ locale: defaultLocale, direction: "ltr", setLocale }}>
-        <NextIntlClientProvider locale={defaultLocale} messages={{}} timeZone="UTC">
+        <NextIntlClientProvider
+          locale={defaultLocale}
+          messages={{}}
+          timeZone="UTC"
+          getMessageFallback={({ key }) => key.split(".").pop() ?? key}
+          onError={() => {
+            // Suppress MISSING_MESSAGE warnings in dev while messages load
+          }}
+        >
           {children}
         </NextIntlClientProvider>
       </LocaleContext.Provider>

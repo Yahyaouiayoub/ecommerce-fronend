@@ -21,7 +21,7 @@ export const fetchOrders = createAsyncThunk(
   "orders/fetch",
   async (params?: AdminOrderQuery) => {
     const res = await services.adminGetOrders(params)
-    return res
+    return res.data
   },
 )
 

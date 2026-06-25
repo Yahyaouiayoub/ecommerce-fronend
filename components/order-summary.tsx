@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator"
 import { getPublicSettings } from "@/lib/api/services"
 import { useApi } from "@/lib/hooks/use-api"
 import type { ShippingSettings, TaxSettings, ShippingMethod } from "@/lib/types"
+import { useTranslations } from "next-intl"
 
 const DEFAULT_SHIPPING: ShippingSettings = {
   enabled: true,
@@ -65,43 +66,45 @@ export function useOrderTotals(selectedShippingCost?: number) {
 }
 
 export function OrderSummary({ children, selectedShippingMethod, selectedShippingCost }: OrderSummaryProps) {
+  const t = useTranslations("checkout")
+  const ct = useTranslations("cart")
   const { subtotal, shipping, tax, total, settings } = useOrderTotals(selectedShippingCost)
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
-      <h2 className="text-lg font-semibold">Order summary</h2>
+      <h2 className="text-lg font-semibold">{t("order_summary")}</h2>
       <dl className="mt-5 flex flex-col gap-3 text-sm">
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">Subtotal</dt>
+          <dt className="text-muted-foreground">{ct("subtotal")}</dt>
           <dd className="font-medium">{formatPrice(subtotal)}</dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">Shipping</dt>
+          <dt className="text-muted-foreground">{ct("shipping")}</dt>
           <dd className="font-medium">
-            {shipping === 0 ? "Free" : formatPrice(shipping)}
+            {shipping === 0 ? t("free") : formatPrice(shipping)}
           </dd>
         </div>
         {shipping === 0 && settings.enabled && settings.free_shipping && subtotal > 0 && (
           <p className="text-xs text-green-600 dark:text-green-400 -mt-1">
-            Free shipping on orders over {formatPrice(settings.free_shipping_min)}
+            {ct("free_shipping", { amount: formatPrice(settings.free_shipping_min) })}
           </p>
         )}
         {selectedShippingMethod && (
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <dt>{selectedShippingMethod.name}</dt>
             {selectedShippingMethod.estimated_days && (
-              <dd>~{selectedShippingMethod.estimated_days} days</dd>
+              <dd>{t("estimated_days", { days: selectedShippingMethod.estimated_days })}</dd>
             )}
           </div>
         )}
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">Estimated tax</dt>
+          <dt className="text-muted-foreground">{ct("tax")}</dt>
           <dd className="font-medium">{formatPrice(tax)}</dd>
         </div>
       </dl>
       <Separator className="my-4" />
       <div className="flex items-center justify-between">
-        <span className="text-base font-semibold">Total</span>
+        <span className="text-base font-semibold">{ct("total")}</span>
         <span className="text-base font-semibold">{formatPrice(total)}</span>
       </div>
       {children && <div className="mt-6">{children}</div>}

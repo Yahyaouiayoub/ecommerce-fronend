@@ -545,10 +545,12 @@ export interface AdminOrderQuery {
   search?: string
   date_from?: string
   date_to?: string
+  page?: number
+  per_page?: number
 }
 
 export async function adminGetOrders(params?: AdminOrderQuery) {
-  const { data } = await api.get<Order[]>("/admin/orders", { params })
+  const { data } = await api.get<PaginatedResponse<Order>>("/admin/orders", { params })
   return data
 }
 

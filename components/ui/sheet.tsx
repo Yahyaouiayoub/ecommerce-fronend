@@ -13,18 +13,28 @@ function Sheet({ ...props }: SheetPrimitive.Root.Props) {
 function SheetTrigger({ 
   className,
   children,
+  asChild,
   ...props 
-}: React.ComponentProps<"div"> & { 
+}: SheetPrimitive.Trigger.Props & { 
   asChild?: boolean 
 }) {
+  // Use base-ui's render prop when asChild is requested
+  const renderEl = asChild && React.isValidElement(children)
+    ? React.cloneElement(children, {
+        ...(children.props as Record<string, unknown>),
+        className: cn(className, (children.props as Record<string, unknown>).className as string | undefined),
+      } as Record<string, unknown>)
+    : undefined
+
   return (
-    <div
+    <SheetPrimitive.Trigger
       data-slot="sheet-trigger"
-      className={cn("cursor-pointer", className)}
+      className={cn("cursor-pointer", !asChild && className)}
+      render={renderEl}
       {...props}
     >
-      {children}
-    </div>
+      {asChild ? null : children}
+    </SheetPrimitive.Trigger>
   )
 }
 

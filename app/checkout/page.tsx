@@ -24,13 +24,18 @@ import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
 import type { Address, PublicSettings, ShippingSettings, ShippingMethod } from "@/lib/types"
 import { toast } from "sonner"
+import { useTranslations } from "next-intl"
 
 const PAYMENT_METHODS = [
-  { value: "card", label: "Credit / Debit card" },
-  { value: "cod", label: "Cash on delivery" },
+  { value: "card" },
+  { value: "cod" },
 ]
 
 export default function CheckoutPage() {
+  const t = useTranslations("checkout")
+  const ct = useTranslations("cart")
+  const cmn = useTranslations("common")
+  const at = useTranslations("auth")
   const items = useAppSelector(selectCartItems)
   const subtotal = useAppSelector(selectCartSubtotal)
   const dispatch = useAppDispatch()
@@ -265,16 +270,15 @@ export default function CheckoutPage() {
   if (items.length === 0) {
     return (
       <SiteShell>
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-semibold tracking-tight">Checkout</h1>
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">                  <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
           <div className="mt-8">
             <StateMessage
               icon={<ShoppingBag className="size-6" />}
-              title="Your cart is empty"
-              description="Add some products before checking out."
+              title={ct("empty")}
+              description={t("empty_desc")}
               action={
                 <Button asChild>
-                  <Link href="/products">Browse products</Link>
+                  <Link href="/products">{t("browse_products")}</Link>
                 </Button>
               }
             />
@@ -287,7 +291,7 @@ export default function CheckoutPage() {
   return (
     <SiteShell>
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Checkout</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
 
         <form
           onSubmit={handleSubmit}
@@ -299,7 +303,7 @@ export default function CheckoutPage() {
             <section className="rounded-xl border border-border bg-card p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">
-                  {user ? "Shipping address" : "Shipping information"}
+                  {user ? t("shipping_address") : t("shipping_info")}
                 </h2>
               </div>
 
@@ -329,11 +333,11 @@ export default function CheckoutPage() {
                     /* Address Form */
                     <div className="mt-4 space-y-4">
                       <h3 className="text-sm font-medium text-muted-foreground">
-                        {editingAddress ? "Edit address" : "New address"}
+                        {editingAddress ? t("edit_address") : t("new_address")}
                       </h3>
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="sm:col-span-2">
-                          <Label htmlFor="addr_full_name">Full name *</Label>
+                          <Label htmlFor="addr_full_name">{t("full_name")} *</Label>
                           <Input
                             id="addr_full_name"
                             value={addressForm.full_name}
@@ -343,7 +347,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="addr_email">Email</Label>
+                          <Label htmlFor="addr_email">{t("email")}</Label>
                           <Input
                             id="addr_email"
                             type="email"
@@ -353,7 +357,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="addr_phone">Phone</Label>
+                          <Label htmlFor="addr_phone">{t("phone")}</Label>
                           <Input
                             id="addr_phone"
                             type="tel"
@@ -363,7 +367,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div className="sm:col-span-2">
-                          <Label htmlFor="addr_line1">Street address *</Label>
+                          <Label htmlFor="addr_line1">{t("street_address")} *</Label>
                           <Input
                             id="addr_line1"
                             value={addressForm.address_line1}
@@ -373,7 +377,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div className="sm:col-span-2">
-                          <Label htmlFor="addr_line2">Apt, suite, etc. (optional)</Label>
+                          <Label htmlFor="addr_line2">{t("apt_suite")}</Label>
                           <Input
                             id="addr_line2"
                             value={addressForm.address_line2}
@@ -382,7 +386,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="addr_city">City *</Label>
+                          <Label htmlFor="addr_city">{t("city")} *</Label>
                           <Input
                             id="addr_city"
                             value={addressForm.city}
@@ -392,7 +396,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="addr_state">State</Label>
+                          <Label htmlFor="addr_state">{t("state")}</Label>
                           <Input
                             id="addr_state"
                             value={addressForm.state}
@@ -401,7 +405,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="addr_postal_code">Postal code</Label>
+                          <Label htmlFor="addr_postal_code">{t("postal_code")}</Label>
                           <Input
                             id="addr_postal_code"
                             value={addressForm.postal_code}
@@ -410,7 +414,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div>
-                          <Label htmlFor="addr_country">Country *</Label>
+                          <Label htmlFor="addr_country">{t("country")} *</Label>
                           <Input
                             id="addr_country"
                             value={addressForm.country}
@@ -420,7 +424,7 @@ export default function CheckoutPage() {
                           />
                         </div>
                         <div className="sm:col-span-2">
-                          <Label htmlFor="addr_label">Label (e.g. Home, Work)</Label>
+                          <Label htmlFor="addr_label">{t("label_example")}</Label>
                           <Input
                             id="addr_label"
                             value={addressForm.label}
@@ -432,10 +436,9 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex gap-3 pt-2">
                         <Button type="button" onClick={handleSaveAddress} disabled={savingAddress}>
-                          {savingAddress ? "Saving..." : editingAddress ? "Update address" : "Save address"}
+                          {savingAddress ? cmn("saving") : editingAddress ? t("update_address") : t("save_address")}
                         </Button>
-                        <Button type="button" variant="outline" onClick={resetAddressForm}>
-                          Cancel
+                        <Button type="button" variant="outline" onClick={resetAddressForm}>                          {cmn("cancel")}
                         </Button>
                       </div>
                     </div>
@@ -462,7 +465,7 @@ export default function CheckoutPage() {
                                     </p>
                                   </>
                                 ) : (
-                                  <p className="text-muted-foreground">Select an address</p>
+                                  <p className="text-muted-foreground">{t("select_address")}</p>
                                 )
                               })()}
                             </div>
@@ -591,7 +594,7 @@ export default function CheckoutPage() {
                 <div className="mt-4 space-y-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                     <User className="size-4" />
-                    <span>Checkout as guest. <Link href="/login?redirect=/checkout" className="text-accent hover:underline">Sign in</Link> to use saved addresses.</span>
+                    <span>Checkout as guest.                <Link href="/login?redirect=/checkout" className="text-accent hover:underline">{at("login")}</Link> {t("guest_info_suffix")}</span>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
@@ -692,12 +695,10 @@ export default function CheckoutPage() {
               <section className="rounded-xl border border-border bg-card p-6">
                 <div className="flex items-center gap-2">
                   <Truck className="size-4 text-muted-foreground" />
-                  <h2 className="text-lg font-semibold">Shipping method</h2>
+                  <h2 className="text-lg font-semibold">{t("shipping_method")}</h2>
                 </div>
                 {!shippingMethods || shippingMethods.length === 0 ? (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    No shipping methods available.
-                  </p>
+                  <p className="mt-4 text-sm text-muted-foreground">{t("no_methods")}</p>
                 ) : (
                   <div className="mt-4 flex flex-col gap-2">
                     {shippingMethods.map((method) => {
@@ -761,7 +762,7 @@ export default function CheckoutPage() {
                       onChange={() => setPayment(method.value)}
                       className="accent-accent"
                     />
-                    {method.label}
+                    {t(method.value === "card" ? "credit_debit_card" : "cash_on_delivery")}
                   </label>
                 ))}
               </div>

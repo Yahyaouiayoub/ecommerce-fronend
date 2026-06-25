@@ -3,7 +3,11 @@ import { CheckCircle2 } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
 import { Button } from "@/components/ui/button"
 
-export default function OrderConfirmationPage() {
+export default function OrderConfirmationPage({
+  params,
+}: {
+  params: { id: string }
+}) {
   return (
     <SiteShell>
       <div className="mx-auto flex max-w-lg flex-col items-center px-4 py-20 text-center">
@@ -14,8 +18,8 @@ export default function OrderConfirmationPage() {
           Thank you for your order
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Your order has been placed successfully. A confirmation email is on its way,
-          and you can track the status anytime from your orders page.
+          Order #{params.id} has been placed successfully. A confirmation email is
+          on its way, and you can track the status anytime from your orders page.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Button asChild>

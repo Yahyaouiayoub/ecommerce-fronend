@@ -16,28 +16,30 @@ import {
   updateQuantity,
   clearCartAsync,
 } from "@/lib/store/cart-slice"
+import { useTranslations } from "next-intl"
 
 export default function CartPage() {
+  const t = useTranslations("cart")
   const items = useAppSelector(selectCartItems)
   const dispatch = useAppDispatch()
 
   return (
     <SiteShell>
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-semibold tracking-tight">Your cart</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
 
         {items.length === 0 ? (
           <div className="mt-8">
             <StateMessage
               icon={<ShoppingBag className="size-6" />}
-              title="Your cart is empty"
-              description="Looks like you haven't added anything yet."
+              title={t("empty")}
+              description={t("empty_desc")}
               action={
                 <Link 
                   href="/products" 
                   className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1 text-sm font-medium text-primary-foreground hover:bg-primary/80 transition-colors"
                 >
-                  Start shopping
+                  {t("start_shopping")}
                 </Link>
               }
             />
@@ -84,7 +86,7 @@ export default function CartPage() {
                         </button>
                       </div>
                       <span className="mt-1 text-sm text-muted-foreground">
-                        {formatPrice(item.price)} each
+                        {t("each", { price: formatPrice(item.price) })}
                       </span>
 
                       <div className="mt-auto flex items-center justify-between pt-3">
@@ -149,7 +151,7 @@ export default function CartPage() {
                               "text-xs mt-0.5",
                               item.stock < 6 ? "text-amber-600" : "text-muted-foreground"
                             )}>
-                              {item.stock} in stock
+                              {t("x_in_stock", { stock: item.stock })}
                             </p>
                           )}
                         </div>
@@ -164,7 +166,7 @@ export default function CartPage() {
                   href="/products" 
                   className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg hover:bg-muted hover:text-foreground px-3 py-1 text-sm font-medium transition-colors"
                 >
-                  Continue shopping
+                  {t("continue_shopping")}
                 </Link>
                 <button 
                   onClick={() =>
@@ -174,7 +176,7 @@ export default function CartPage() {
                   }
                   className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg hover:bg-muted hover:text-foreground px-3 py-1 text-sm font-medium transition-colors"
                 >
-                  Clear cart
+                  {t("clear_cart")}
                 </button>
               </div>
             </div>
@@ -186,7 +188,7 @@ export default function CartPage() {
                   href="/checkout" 
                   className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 transition-colors"
                 >
-                  Proceed to checkout
+                  {t("proceed_checkout")}
                 </Link>
               </OrderSummary>
             </div>

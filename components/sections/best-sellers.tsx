@@ -7,8 +7,10 @@ import { useApi } from "@/lib/hooks/use-api"
 import { ProductCard } from "@/components/product-card"
 import { ProductGridSkeleton } from "@/components/skeletons"
 import { StateMessage } from "@/components/state-message"
+import { useTranslations } from "next-intl"
 
 export function BestSellers() {
+  const t = useTranslations("home")
   const { data, loading, error, reload } = useApi(
     () => getBestSellers(),
     [],
@@ -21,18 +23,18 @@ export function BestSellers() {
           <div className="flex items-center gap-2">
             <TrendingUp className="size-5 text-muted-foreground" />
             <h2 className="text-2xl font-semibold tracking-tight text-balance sm:text-3xl">
-              Best sellers
+              {t("best_sellers_title")}
             </h2>
           </div>
           <p className="mt-2 text-muted-foreground">
-            The most popular products our customers love right now.
+            {t("best_sellers_description")}
           </p>
         </div>
         <Link
           href="/products?best_sellers=true"
           className="hidden sm:inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-sm font-medium hover:bg-muted hover:text-foreground transition-colors"
         >
-          View all
+          {t("best_sellers_view_all")}
         </Link>
       </div>
 
