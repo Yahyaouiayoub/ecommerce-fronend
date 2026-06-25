@@ -2,18 +2,19 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useCallback } from "react"
-import { Settings2, Truck, Receipt, FileText, Save, Plus, Trash2, GripVertical } from "lucide-react"
+import { Settings2, Truck, Receipt, FileText, Save, Plus, Trash2, GripVertical, Image as ImageIcon, Upload, X } from "lucide-react"
 import { formatPrice } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
-import { adminGetSettings, adminUpdateSettings, adminGetShippingMethods, adminCreateShippingMethod, adminUpdateShippingMethod, adminDeleteShippingMethod } from "@/lib/api/services"
-import { getApiErrorMessage } from "@/lib/api/client"
+import { adminGetSettings, adminUpdateSettings, adminGetShippingMethods, adminCreateShippingMethod, adminUpdateShippingMethod, adminDeleteShippingMethod, adminUploadLogo, adminDeleteLogo } from "@/lib/api/services"
+import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import type { AdminSettingsResponse, ShippingSettings, TaxSettings, ShippingMethod, InvoiceSettings } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -40,6 +41,10 @@ export default function AdminSettingsPage() {
     estimated_days: "",
   })
   const [savingMethod, setSavingMethod] = useState(false)
+
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [logoUrl, setLogoUrl] = useState("")
 
   const [saving, setSaving] = useState(false)
   const [shipping, setShipping] = useState<ShippingSettings>({
@@ -81,6 +86,10 @@ export default function AdminSettingsPage() {
       setShipping(data.shipping)
       setTax(data.tax)
       if (data.invoice) setInvoice(data.invoice)
+      if (data.logo_url) {
+        setLogoUrl(data.logo_url)
+        setLogoPreview(getImageUrl(data.logo_url))
+      }
     }
   }, [data])
 
@@ -512,17 +521,17 @@ export default function AdminSettingsPage() {
                 </div>
                 <div>
                   <Label htmlFor="inv_format">Number Format</Label>
-                  <select
+                  <Select
                     id="inv_format"
                     value={invoice.number_format}
                     onChange={(e) => setInvoice({ ...invoice, number_format: e.target.value })}
-                    className="mt-1.5 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="mt-1.5 w-full"
                   >
                     <option value="YEAR_MONTH_SEQ">INV-202606-0001</option>
                     <option value="YEAR_SEQ">INV-2026-0001</option>
                     <option value="MONTH_SEQ">INV-06-0001</option>
                     <option value="SEQ">INV-0001</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
 
@@ -589,6 +598,106 @@ export default function AdminSettingsPage() {
             </div>
           </section>
 
+          {/* Logo Upload */}
+          <section className="rounded-xl border border-border bg-card p-6">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                <ImageIcon className="size-4.5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Logo</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload your brand logo. It will appear in the navbar, footer, and invoices.
+                </p>
+              </div>
+            </div>
+            <Separator className="my-5" />
+            <div className="space-y-4">
+              {/* Preview */}
+              <div className="flex items-start gap-6">
+                <div className="flex size-28 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/30 overflow-hidden">
+                  {logoPreview ? (
+                    <img
+                      src={logoPreview}
+                      alt="Logo preview"
+                      className="size-full object-contain p-2"
+                    />
+                  ) : (
+                    <ImageIcon className="size-8 text-muted-foreground/50" />
+                  )}
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg,image/svg+xml,image/webp"
+                      className="hidden"
+                      disabled={uploadingLogo}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+
+                        // Preview locally
+                        const preview = URL.createObjectURL(file)
+                        setLogoPreview(preview)
+
+                        // Upload
+                        setUploadingLogo(true)
+                        try {
+                          const res = await adminUploadLogo(file)
+                          setLogoUrl(res.logo_path)
+                          setLogoPreview(getImageUrl(res.logo_path))
+                          toast.success("Logo uploaded")
+                        } catch (err) {
+                          // Revert preview on error
+                          setLogoPreview(logoUrl ? getImageUrl(logoUrl) : null)
+                          toast.error(getApiErrorMessage(err, "Failed to upload logo"))
+                        } finally {
+                          setUploadingLogo(false)
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingLogo}
+                      asChild
+                    >
+                      <span>
+                        <Upload className="size-3.5" />
+                        {uploadingLogo ? "Uploading..." : "Choose image"}
+                      </span>
+                    </Button>
+                  </label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive w-fit"
+                    disabled={!logoUrl || uploadingLogo}
+                    onClick={async () => {
+                      try {
+                        await adminDeleteLogo()
+                        setLogoUrl("")
+                        setLogoPreview(null)
+                        toast.success("Logo removed")
+                      } catch (err) {
+                        toast.error(getApiErrorMessage(err, "Failed to remove logo"))
+                      }
+                    }}
+                  >
+                    <X className="size-3.5" />
+                    Remove logo
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPG, or SVG. Max 2MB. Square aspect recommended.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* Tax Settings */}
           <section className="rounded-xl border border-border bg-card p-6">
             <div className="flex items-center gap-3">
@@ -628,15 +737,15 @@ export default function AdminSettingsPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <Label htmlFor="tax_type">Tax type</Label>
-                      <select
+                      <Select
                         id="tax_type"
                         value={tax.type}
                         onChange={(e) => setTax({ ...tax, type: e.target.value as "percentage" | "fixed" })}
-                        className="mt-1.5 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                        className="mt-1.5 w-full"
                       >
                         <option value="percentage">Percentage (%)</option>
                         <option value="fixed">Fixed amount ($)</option>
-                      </select>
+                      </Select>
                     </div>
                     <div>
                       <Label htmlFor="tax_rate">

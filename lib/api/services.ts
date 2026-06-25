@@ -429,6 +429,33 @@ export async function getFinancialDashboard() {
   return data
 }
 
+export interface ProductProfit {
+  id: number
+  name: string
+  purchase_price: number
+  selling_price: number
+  total_sold: number
+  total_revenue: number
+  total_cost: number
+  profit: number
+  margin_percentage: number
+}
+
+export interface ProductProfitResponse {
+  data: ProductProfit[]
+  total_count: number
+  summary: {
+    total_revenue: number
+    total_cost: number
+    total_profit: number
+  }
+}
+
+export async function adminGetProductProfits() {
+  const { data } = await api.get<ProductProfitResponse>("/admin/dashboard/product-profits")
+  return data
+}
+
 // =========================
 // ADMIN: PRODUCTS
 // =========================
@@ -761,6 +788,20 @@ export async function adminGetSettings() {
 
 export async function adminUpdateSettings(settings: Record<string, string>) {
   const { data } = await api.put<AdminSettingsResponse>("/admin/settings", { settings })
+  return data
+}
+
+/** Upload a logo image (multipart/form-data) */
+export async function adminUploadLogo(file: File) {
+  const formData = new FormData()
+  formData.append("logo", file)
+  const { data } = await api.post<{ message: string; logo_url: string; logo_path: string }>("/admin/settings/logo", formData)
+  return data
+}
+
+/** Delete the logo (reset to default) */
+export async function adminDeleteLogo() {
+  const { data } = await api.delete<{ message: string }>("/admin/settings/logo")
   return data
 }
 

@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { StateMessage } from "@/components/state-message"
@@ -179,16 +180,16 @@ export default function AdminCartsPage() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-32 flex-1">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
-                <select
+                <Select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="w-full"
                 >
                   <option value="">All statuses</option>
                   <option value="active">Active</option>
                   <option value="abandoned">Abandoned</option>
                   <option value="converted">Converted (checked out)</option>
-                </select>
+                </Select>
               </div>
               <div className="min-w-40 flex-1">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Search</label>

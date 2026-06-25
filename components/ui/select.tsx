@@ -9,8 +9,8 @@ export interface SelectProps extends React.ComponentProps<"select"> {
 
 /**
  * A themed `<select>` wrapper that controls the native dropdown appearance
- * for dark mode compatibility. Uses `color-scheme` on the wrapper and applies
- * `appearance: none` for consistent cross-browser styling.
+ * for dark mode compatibility. Uses `color-scheme` to make the native OS
+ * dropdown popup use the correct theme.
  */
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, children, error, ...props }, ref) => {
@@ -23,10 +23,11 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             "h-9 w-full min-w-[140px] appearance-none rounded-lg border bg-background px-3 py-1.5 pr-8 text-sm text-foreground transition-colors",
             "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
+            "dark:bg-card dark:text-foreground dark:border-border",
             error && "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
             className,
           )}
-          style={{ colorScheme: "var(--color-scheme, inherit)" as React.CSSProperties["colorScheme"] }}
+          style={{ colorScheme: "light dark" as React.CSSProperties["colorScheme"] }}
           {...props}
         >
           {children}

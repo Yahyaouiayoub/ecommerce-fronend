@@ -22,11 +22,13 @@ import { Separator } from "@/components/ui/separator"
 import { StateMessage } from "@/components/state-message"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
-import { getUserInvoice } from "@/lib/api/services"
+import { getUserInvoice, getPublicSettings } from "@/lib/api/services"
 import { formatPrice } from "@/lib/utils"
-import { openPdfInNewTab, downloadPdf } from "@/lib/pdf"
+import { getImageUrl } from "@/lib/api/client"
+import { previewInvoicePdf, downloadInvoicePdf } from "@/lib/generateInvoicePDF"
 import { SiteShell } from "@/components/site-shell"
-import type { Invoice } from "@/lib/types"
+import { toast } from "sonner"
+import type { Invoice, PublicSettings } from "@/lib/types"
 
 const statusStyles: Record<string, string> = {
   pending: "bg-neutral-100 text-neutral-800 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
@@ -60,6 +62,19 @@ export default function CustomerInvoiceDetailPage() {
     () => getUserInvoice(id),
     [id],
   )
+  const { data: settingsData } = useApi<PublicSettings | null>(
+    () => getPublicSettings(),
+    [],
+  )
+  const logoUrl = settingsData?.logo_url ? getImageUrl(settingsData.logo_url) : undefined
+  const companySettings = settingsData ? {
+    company_name: settingsData.company_name ?? 'Lumen Store',
+    company_address: settingsData.company_address ?? '123 Commerce Street',
+    company_city: settingsData.company_city ?? 'Casablanca',
+    company_country: settingsData.company_country ?? 'Morocco',
+    company_phone: settingsData.company_phone ?? '',
+    company_email: settingsData.company_email ?? '',
+  } : undefined
 
   const [showAllItems, setShowAllItems] = useState(false)
 
@@ -95,7 +110,14 @@ export default function CustomerInvoiceDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openPdfInNewTab(`/invoices/${id}/pdf`)}
+                  onClick={async () => {
+                    if (!invoice) return
+                    try {
+                      await previewInvoicePdf(invoice, undefined, companySettings, logoUrl)
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to preview PDF")
+                    }
+                  }}
                 >
                   <Eye className="size-4" />
                   Preview PDF
@@ -103,12 +125,15 @@ export default function CustomerInvoiceDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    downloadPdf(
-                      `/invoices/${id}/download`,
-                      `invoice-${invoice.invoice_number}.pdf`,
-                    )
-                  }
+                  onClick={async () => {
+                    if (!invoice) return
+                    try {
+                      await downloadInvoicePdf(invoice, undefined, companySettings, logoUrl)
+                      toast.success("PDF downloaded")
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to download PDF")
+                    }
+                  }}
                 >
                   <Download className="size-4" />
                   Download

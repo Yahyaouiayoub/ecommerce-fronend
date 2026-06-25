@@ -28,10 +28,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
-import { adminGetInvoice, adminUpdateInvoiceStatus, adminRecordPayment, adminSendInvoice } from "@/lib/api/services"
+import { adminGetInvoice, adminUpdateInvoiceStatus, adminRecordPayment, adminSendInvoice, getPublicSettings } from "@/lib/api/services"
 import { formatPrice } from "@/lib/utils"
-import { getApiErrorMessage } from "@/lib/api/client"
-import { openPdfInNewTab, downloadPdf } from "@/lib/pdf"
+import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
+import { previewInvoicePdf, downloadInvoicePdf } from "@/lib/generateInvoicePDF"
+import type { PublicSettings } from "@/lib/types"
 import type { Invoice, InvoiceDetailResponse } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -46,13 +47,13 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 }
 
 const statusStyles: Record<string, string> = {
-  pending: "bg-neutral-100 text-neutral-800 border-neutral-300",
-  unpaid: "bg-neutral-100 text-neutral-800 border-neutral-300",
-  partially_paid: "bg-neutral-100 text-neutral-800 border-neutral-300",
-  paid: "bg-neutral-800 text-white border-neutral-800",
-  failed: "bg-neutral-100 text-neutral-800 border-neutral-300",
-  refunded: "bg-neutral-100 text-neutral-800 border-neutral-300 line-through",
-  cancelled: "bg-neutral-100 text-neutral-500 border-neutral-200 line-through",
+  pending: "bg-neutral-100 text-neutral-800 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
+  unpaid: "bg-neutral-100 text-neutral-800 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
+  partially_paid: "bg-neutral-100 text-neutral-800 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
+  paid: "bg-neutral-800 text-white border-neutral-800 dark:bg-neutral-100 dark:text-neutral-900 dark:border-neutral-100",
+  failed: "bg-neutral-100 text-neutral-800 border-neutral-300 dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
+  refunded: "bg-neutral-100 text-neutral-800 border-neutral-300 line-through dark:bg-neutral-800 dark:text-neutral-200 dark:border-neutral-700",
+  cancelled: "bg-neutral-100 text-neutral-500 border-neutral-200 line-through dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700",
 }
 
 const statusLabels: Record<string, string> = {
@@ -77,6 +78,19 @@ export default function AdminInvoiceDetailPage() {
     () => adminGetInvoice(id),
     [id],
   )
+  const { data: settingsData } = useApi<PublicSettings | null>(
+    () => getPublicSettings(),
+    [],
+  )
+  const logoUrl = settingsData?.logo_url ? getImageUrl(settingsData.logo_url) : undefined
+  const companySettings = settingsData ? {
+    company_name: settingsData.company_name ?? 'Lumen Store',
+    company_address: settingsData.company_address ?? '123 Commerce Street',
+    company_city: settingsData.company_city ?? 'Casablanca',
+    company_country: settingsData.company_country ?? 'Morocco',
+    company_phone: settingsData.company_phone ?? '',
+    company_email: settingsData.company_email ?? '',
+  } : undefined
 
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [showAllItems, setShowAllItems] = useState(false)
@@ -208,18 +222,33 @@ export default function AdminInvoiceDetailPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/invoices"
-            className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors"
           >
             <ArrowLeft className="size-4" />
             Back to invoices
           </Link>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => openPdfInNewTab(`/admin/invoices/${id}/pdf`)}>
+          <Button variant="outline" size="sm" onClick={async () => {
+            if (!invoice) return
+            try {
+              await previewInvoicePdf(invoice, meta, companySettings, logoUrl)
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Failed to preview PDF")
+            }
+          }}>
             <Eye className="size-4" />
             Preview PDF
           </Button>
-          <Button variant="outline" size="sm" onClick={() => downloadPdf(`/admin/invoices/${id}/download`, `invoice-${invoice?.invoice_number ?? id}.pdf`)}>
+          <Button variant="outline" size="sm" onClick={async () => {
+            if (!invoice) return
+            try {
+              await downloadInvoicePdf(invoice, meta, companySettings, logoUrl)
+              toast.success("PDF downloaded")
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : "Failed to download PDF")
+            }
+          }}>
             <Download className="size-4" />
             Download
           </Button>
@@ -252,26 +281,26 @@ export default function AdminInvoiceDetailPage() {
           {/* ================================
               INVOICE DOCUMENT (main content)
           ================================ */}
-          <div className="bg-white text-neutral-900 border border-neutral-200 shadow-sm print:border-none print:shadow-none">
+          <div className="bg-white text-neutral-900 border border-neutral-200 shadow-sm dark:bg-neutral-950 dark:text-neutral-100 dark:border-neutral-800 print:border-none print:shadow-none">
             {/* --- Header --- */}
-            <div className="px-10 pt-10 pb-8 border-b border-neutral-200 print:px-8 print:pt-8">
+            <div className="px-10 pt-10 pb-8 border-b border-neutral-200 dark:border-neutral-800 print:px-8 print:pt-8">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-3 mb-1">
-                    <Building2 className="size-6 text-neutral-400" />
-                    <span className="text-lg font-semibold tracking-tight text-neutral-800">
+                    <Building2 className="size-6 text-neutral-400 dark:text-neutral-500" />
+                    <span className="text-lg font-semibold tracking-tight text-neutral-800 dark:text-neutral-200">
                       {invoice.billing_name ?? "Lumen Store"}
                     </span>
                   </div>
-                  <p className="text-xs text-neutral-400 leading-relaxed mt-1.5">
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500 leading-relaxed mt-1.5">
                     123 Commerce Street, Casablanca, Morocco
                   </p>
                 </div>
                 <div className="text-right">
-                  <h1 className="text-3xl font-light tracking-[0.15em] text-neutral-900 uppercase">
+                  <h1 className="text-3xl font-light tracking-[0.15em] text-neutral-900 dark:text-neutral-100 uppercase">
                     Invoice
                   </h1>
-                  <p className="mt-1 text-sm font-mono text-neutral-600">
+                  <p className="mt-1 text-sm font-mono text-neutral-600 dark:text-neutral-400">
                     {invoice.invoice_number}
                   </p>
                 </div>
@@ -279,29 +308,29 @@ export default function AdminInvoiceDetailPage() {
             </div>
 
             {/* --- Metadata --- */}
-            <div className="px-10 py-6 border-b border-neutral-100 print:px-8">
+            <div className="px-10 py-6 border-b border-neutral-100 dark:border-neutral-800 print:px-8">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-5 text-sm">
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1">Invoice #</p>
-                  <p className="font-mono text-neutral-800">{invoice.invoice_number}</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1">Invoice #</p>
+                  <p className="font-mono text-neutral-800 dark:text-neutral-200">{invoice.invoice_number}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1">Order #</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1">Order #</p>
                   {invoice.order ? (
                     <Link
                       href={`/dashboard/orders/${invoice.order.id}`}
-                      className="font-mono text-neutral-800 hover:underline inline-flex items-center gap-1"
+                      className="font-mono text-neutral-800 dark:text-neutral-200 hover:underline inline-flex items-center gap-1"
                     >
                       {invoice.order.order_number}
-                      <ExternalLink className="size-3 text-neutral-300" />
+                      <ExternalLink className="size-3 text-neutral-300 dark:text-neutral-600" />
                     </Link>
                   ) : (
                     <p className="font-mono text-neutral-400">#{invoice.order_id}</p>
                   )}
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-1">Date</p>
-                  <p className="text-neutral-800">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-1">Date</p>
+                  <p className="text-neutral-800 dark:text-neutral-200">
                     {invoice.issued_at
                       ? new Date(invoice.issued_at).toLocaleDateString("en-US", {
                           year: "numeric", month: "long", day: "numeric"
@@ -321,20 +350,20 @@ export default function AdminInvoiceDetailPage() {
             </div>
 
             {/* --- Bill To + Amount Summary side by side --- */}
-            <div className="px-10 py-6 border-b border-neutral-100 print:px-8">
+            <div className="px-10 py-6 border-b border-neutral-100 dark:border-neutral-800 print:px-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 {/* Bill To */}
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-3">Bill To</p>
-                  <div className="space-y-1 text-sm text-neutral-700">
-                    <p className="font-medium text-neutral-900">{invoice.billing_name ?? invoice.order?.customer?.full_name ?? "N/A"}</p>
-                    {invoice.billing_email && <p className="text-neutral-500">{invoice.billing_email}</p>}
-                    {invoice.billing_phone && <p className="text-neutral-500">{invoice.billing_phone}</p>}
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">Bill To</p>
+                  <div className="space-y-1 text-sm text-neutral-700 dark:text-neutral-300">
+                    <p className="font-medium text-neutral-900 dark:text-neutral-100">{invoice.billing_name ?? invoice.order?.customer?.full_name ?? "N/A"}</p>
+                    {invoice.billing_email && <p className="text-neutral-500 dark:text-neutral-400">{invoice.billing_email}</p>}
+                    {invoice.billing_phone && <p className="text-neutral-500 dark:text-neutral-400">{invoice.billing_phone}</p>}
                     {invoice.billing_address && (
-                      <p className="text-neutral-500 whitespace-pre-wrap mt-1">{invoice.billing_address}</p>
+                      <p className="text-neutral-500 dark:text-neutral-400 whitespace-pre-wrap mt-1">{invoice.billing_address}</p>
                     )}
                     {invoice.order?.address && !invoice.billing_address && (
-                      <div className="text-neutral-500 mt-1">
+                      <div className="text-neutral-500 dark:text-neutral-400 mt-1">
                         <p>{invoice.order.address.full_name}</p>
                         <p>{invoice.order.address.address_line1}</p>
                         {invoice.order.address.address_line2 && <p>{invoice.order.address.address_line2}</p>}
@@ -351,14 +380,14 @@ export default function AdminInvoiceDetailPage() {
 
                 {/* Amount Summary */}
                 <div className="sm:text-right">
-                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-3">Amount Summary</p>
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">Amount Summary</p>
                   <div className="space-y-2">
                     <div className="flex justify-between sm:justify-end gap-4 text-sm">
-                      <span className="text-neutral-500 sm:hidden">Total</span>
-                      <span className="text-xl font-semibold text-neutral-900">{formatPrice(invoice.total_amount)}</span>
+                      <span className="text-neutral-500 dark:text-neutral-400 sm:hidden">Total</span>
+                      <span className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{formatPrice(invoice.total_amount)}</span>
                     </div>
                     {invoice.due_date && (
-                      <div className="flex justify-between sm:justify-end gap-4 text-xs text-neutral-400">
+                      <div className="flex justify-between sm:justify-end gap-4 text-xs text-neutral-400 dark:text-neutral-500">
                         <span className="sm:hidden">Due date</span>
                         <span>Due {new Date(invoice.due_date).toLocaleDateString("en-US", {
                           year: "numeric", month: "short", day: "numeric"
@@ -373,10 +402,10 @@ export default function AdminInvoiceDetailPage() {
             {/* --- Products Table --- */}
             {items.length > 0 && (
               <div className="px-10 py-6 print:px-8">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-4">Products</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-4">Products</p>
 
                 {/* Table header */}
-                <div className="hidden sm:grid sm:grid-cols-[2fr_80px_120px_120px] gap-3 py-2.5 border-b border-neutral-200 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+                <div className="hidden sm:grid sm:grid-cols-[2fr_80px_120px_120px] gap-3 py-2.5 border-b border-neutral-200 dark:border-neutral-700 text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
                   <span>Product</span>
                   <span className="text-center">Qty</span>
                   <span className="text-right">Unit Price</span>
@@ -384,21 +413,21 @@ export default function AdminInvoiceDetailPage() {
                 </div>
 
                 {/* Table rows */}
-                <div className="divide-y divide-neutral-100">
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
                   {visibleItems.map((item) => (
                     <div
                       key={item.id}
                       className="grid grid-cols-2 sm:grid-cols-[2fr_80px_120px_120px] gap-2 sm:gap-3 py-3.5 text-sm"
                     >
                       <div className="col-span-2 sm:col-span-1">
-                        <p className="font-medium text-neutral-900">{item.product_name}</p>
-                        <p className="text-xs text-neutral-400 sm:hidden mt-0.5">
+                        <p className="font-medium text-neutral-900 dark:text-neutral-100">{item.product_name}</p>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 sm:hidden mt-0.5">
                           Qty: {item.quantity} × {item.price_formatted}
                         </p>
                       </div>
-                      <span className="hidden sm:block text-center text-neutral-600">{item.quantity}</span>
-                      <span className="hidden sm:block text-right text-neutral-600">{item.price_formatted}</span>
-                      <span className="text-right font-medium text-neutral-900 sm:text-right row-start-2 sm:row-start-auto col-start-2 sm:col-start-auto">
+                      <span className="hidden sm:block text-center text-neutral-600 dark:text-neutral-400">{item.quantity}</span>
+                      <span className="hidden sm:block text-right text-neutral-600 dark:text-neutral-400">{item.price_formatted}</span>
+                      <span className="text-right font-medium text-neutral-900 dark:text-neutral-100 sm:text-right row-start-2 sm:row-start-auto col-start-2 sm:col-start-auto">
                         {item.subtotal_formatted}
                       </span>
                     </div>
@@ -409,7 +438,7 @@ export default function AdminInvoiceDetailPage() {
                 {hasMoreItems && (
                   <button
                     onClick={() => setShowAllItems(!showAllItems)}
-                    className="mt-3 flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-800 transition-colors"
+                    className="mt-3 flex items-center gap-1.5 text-xs text-neutral-500 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
                   >
                     {showAllItems ? (
                       <>
@@ -428,43 +457,43 @@ export default function AdminInvoiceDetailPage() {
             )}
 
             {/* --- Totals --- */}
-            <div className="px-10 py-6 border-t border-neutral-200 print:px-8">
+            <div className="px-10 py-6 border-t border-neutral-200 dark:border-neutral-800 print:px-8">
               <div className="ml-auto max-w-xs space-y-2">
                 {meta && (
                   <>
                     <div className="flex justify-between text-sm">
-                      <span className="text-neutral-500">Subtotal</span>
-                      <span className="text-neutral-800">{formatPrice(meta.subtotal)}</span>
+                      <span className="text-neutral-500 dark:text-neutral-400">Subtotal</span>
+                      <span className="text-neutral-800 dark:text-neutral-200">{formatPrice(meta.subtotal)}</span>
                     </div>
                     {meta.shipping > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-neutral-500">Shipping</span>
-                        <span className="text-neutral-800">{formatPrice(meta.shipping)}</span>
+                        <span className="text-neutral-500 dark:text-neutral-400">Shipping</span>
+                        <span className="text-neutral-800 dark:text-neutral-200">{formatPrice(meta.shipping)}</span>
                       </div>
                     )}
                     {meta.tax > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-neutral-500">Tax</span>
-                        <span className="text-neutral-800">{formatPrice(meta.tax)}</span>
+                        <span className="text-neutral-500 dark:text-neutral-400">Tax</span>
+                        <span className="text-neutral-800 dark:text-neutral-200">{formatPrice(meta.tax)}</span>
                       </div>
                     )}
-                    <Separator className="my-2" />
+                    <Separator className="my-2 dark:bg-neutral-800" />
                   </>
                 )}
-                <div className="flex justify-between text-base font-semibold text-neutral-900">
+                <div className="flex justify-between text-base font-semibold text-neutral-900 dark:text-neutral-100">
                   <span>Total</span>
                   <span>{formatPrice(invoice.total_amount)}</span>
                 </div>
                 {invoice.paid_amount > 0 && (
                   <>
-                    <div className="flex justify-between text-sm text-neutral-500">
+                    <div className="flex justify-between text-sm text-neutral-500 dark:text-neutral-400">
                       <span>Paid</span>
-                      <span className="text-neutral-700">− {formatPrice(invoice.paid_amount)}</span>
+                      <span className="text-neutral-700 dark:text-neutral-300">− {formatPrice(invoice.paid_amount)}</span>
                     </div>
-                    <Separator className="my-1" />
+                    <Separator className="my-1 dark:bg-neutral-800" />
                     <div className="flex justify-between text-base font-semibold">
-                      <span className="text-neutral-700">Balance Due</span>
-                      <span className={invoice.remaining_amount > 0 ? "text-neutral-900" : "text-neutral-400"}>
+                      <span className="text-neutral-700 dark:text-neutral-300">Balance Due</span>
+                      <span className={invoice.remaining_amount > 0 ? "text-neutral-900 dark:text-neutral-100" : "text-neutral-400 dark:text-neutral-500"}>
                         {formatPrice(invoice.remaining_amount)}
                       </span>
                     </div>
@@ -475,20 +504,20 @@ export default function AdminInvoiceDetailPage() {
 
             {/* --- Payment History --- */}
             {invoice.payments && invoice.payments.length > 0 && (
-              <div className="px-10 py-6 border-t border-neutral-100 print:px-8">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-4">
+              <div className="px-10 py-6 border-t border-neutral-100 dark:border-neutral-800 print:px-8">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-4">
                   Payment History
                 </p>
                 <div className="space-y-3">
                   {[...invoice.payments]
                     .sort((a, b) => new Date(b.paid_at ?? b.created_at).getTime() - new Date(a.paid_at ?? a.created_at).getTime())
                     .map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between py-2.5 border-b border-neutral-50 last:border-none">
+                      <div key={payment.id} className="flex items-center justify-between py-2.5 border-b border-neutral-50 dark:border-neutral-800/50 last:border-none">
                         <div className="flex items-center gap-3">
-                          <div className="size-1.5 rounded-full bg-neutral-300" />
+                          <div className="size-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600" />
                           <div>
-                            <p className="text-sm font-medium text-neutral-800">{payment.payment_type_label}</p>
-                            <p className="text-xs text-neutral-400">
+                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">{payment.payment_type_label}</p>
+                            <p className="text-xs text-neutral-400 dark:text-neutral-500">
                               {payment.paid_at
                                 ? new Date(payment.paid_at).toLocaleDateString("en-US", {
                                     year: "numeric", month: "short", day: "numeric"
@@ -499,7 +528,7 @@ export default function AdminInvoiceDetailPage() {
                             </p>
                           </div>
                         </div>
-                        <p className="text-sm font-semibold text-neutral-800">{payment.amount_formatted}</p>
+                        <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">{payment.amount_formatted}</p>
                       </div>
                     ))}
                 </div>
@@ -508,18 +537,18 @@ export default function AdminInvoiceDetailPage() {
 
             {/* --- Notes --- */}
             {invoice.notes && (
-              <div className="px-10 py-6 border-t border-neutral-100 print:px-8">
-                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 mb-2">Notes</p>
-                <p className="text-sm text-neutral-600 whitespace-pre-wrap">{invoice.notes}</p>
+              <div className="px-10 py-6 border-t border-neutral-100 dark:border-neutral-800 print:px-8">
+                <p className="text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-2">Notes</p>
+                <p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">{invoice.notes}</p>
               </div>
             )}
 
             {/* --- Footer --- */}
-            <div className="px-10 py-6 border-t border-neutral-200 text-center print:px-8">
-              <p className="text-xs text-neutral-400">
+            <div className="px-10 py-6 border-t border-neutral-200 dark:border-neutral-800 text-center print:px-8">
+              <p className="text-xs text-neutral-400 dark:text-neutral-500">
                 Thank you for your business
               </p>
-              <p className="text-[10px] text-neutral-300 mt-1">
+              <p className="text-[10px] text-neutral-300 dark:text-neutral-600 mt-1">
                 Generated on {new Date(invoice.created_at).toLocaleDateString("en-US", {
                   year: "numeric", month: "long", day: "numeric"
                 })}
@@ -532,8 +561,8 @@ export default function AdminInvoiceDetailPage() {
           ================================ */}
           <div className="space-y-6 print:hidden">
             {/* Status Management */}
-            <div className="rounded-sm border border-neutral-200 bg-white p-5">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <div className="rounded-sm border border-neutral-200 bg-white p-5 dark:bg-neutral-900 dark:border-neutral-800">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
                 Status
               </h2>
               <div className="space-y-2">
@@ -551,89 +580,89 @@ export default function AdminInvoiceDetailPage() {
                     </Button>
                   ))
                 ) : (
-                  <p className="text-xs text-neutral-400">Terminal state.</p>
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500">Terminal state.</p>
                 )}
               </div>
             </div>
 
             {/* Customer */}
-            <div className="rounded-sm border border-neutral-200 bg-white p-5">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <div className="rounded-sm border border-neutral-200 bg-white p-5 dark:bg-neutral-900 dark:border-neutral-800">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
                 Customer
               </h2>
               <div className="space-y-3 text-sm">
                 <div className="flex items-start gap-2.5">
-                  <User className="size-3.5 mt-0.5 text-neutral-400 shrink-0" />
+                  <User className="size-3.5 mt-0.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
                   <div>
-                    <p className="font-medium text-neutral-800">{invoice.billing_name ?? invoice.order?.customer?.full_name ?? "N/A"}</p>
-                    {invoice.billing_email && <p className="text-xs text-neutral-400">{invoice.billing_email}</p>}
-                    {invoice.billing_phone && <p className="text-xs text-neutral-400">{invoice.billing_phone}</p>}
+                    <p className="font-medium text-neutral-800 dark:text-neutral-200">{invoice.billing_name ?? invoice.order?.customer?.full_name ?? "N/A"}</p>
+                    {invoice.billing_email && <p className="text-xs text-neutral-400 dark:text-neutral-500">{invoice.billing_email}</p>}
+                    {invoice.billing_phone && <p className="text-xs text-neutral-400 dark:text-neutral-500">{invoice.billing_phone}</p>}
                   </div>
                 </div>
                 {invoice.billing_address && (
                   <div className="flex items-start gap-2.5">
-                    <MapPin className="size-3.5 mt-0.5 text-neutral-400 shrink-0" />
-                    <p className="text-xs text-neutral-500 whitespace-pre-wrap">{invoice.billing_address}</p>
+                    <MapPin className="size-3.5 mt-0.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400 whitespace-pre-wrap">{invoice.billing_address}</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Order Details */}
-            <div className="rounded-sm border border-neutral-200 bg-white p-5">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <div className="rounded-sm border border-neutral-200 bg-white p-5 dark:bg-neutral-900 dark:border-neutral-800">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
                 Order
               </h2>
               {invoice.order ? (
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-400">Order #</span>
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">Order #</span>
                     <Link
                       href={`/dashboard/orders/${invoice.order.id}`}
-                      className="text-xs font-mono text-neutral-700 hover:underline flex items-center gap-1"
+                      className="text-xs font-mono text-neutral-700 dark:text-neutral-300 hover:underline flex items-center gap-1"
                     >
                       {invoice.order.order_number}
-                      <ExternalLink className="size-3 text-neutral-300" />
+                      <ExternalLink className="size-3 text-neutral-300 dark:text-neutral-600" />
                     </Link>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-400">Status</span>
-                    <span className="text-xs font-medium text-neutral-700">{invoice.order.status_label}</span>
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">Status</span>
+                    <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">{invoice.order.status_label}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-400">Total</span>
-                    <span className="text-xs font-medium text-neutral-800">{formatPrice(invoice.order.total_price)}</span>
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">Total</span>
+                    <span className="text-xs font-medium text-neutral-800 dark:text-neutral-200">{formatPrice(invoice.order.total_price)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-neutral-400">Date</span>
-                    <span className="text-xs text-neutral-500">
+                    <span className="text-xs text-neutral-400 dark:text-neutral-500">Date</span>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400">
                       {new Date(invoice.order.created_at).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
               ) : (
-                <p className="text-xs text-neutral-400">Order #{invoice.order_id}</p>
+                <p className="text-xs text-neutral-400 dark:text-neutral-500">Order #{invoice.order_id}</p>
               )}
             </div>
 
             {/* Payment Method */}
-            <div className="rounded-sm border border-neutral-200 bg-white p-5">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <div className="rounded-sm border border-neutral-200 bg-white p-5 dark:bg-neutral-900 dark:border-neutral-800">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
                 Payment
               </h2>
               <div className="space-y-3">
                 <div className="flex items-center gap-2.5 text-sm">
                   {invoice.payment_method === "card" ? (
-                    <CreditCard className="size-3.5 text-neutral-400" />
+                    <CreditCard className="size-3.5 text-neutral-400 dark:text-neutral-500" />
                   ) : (
-                    <Banknote className="size-3.5 text-neutral-400" />
+                    <Banknote className="size-3.5 text-neutral-400 dark:text-neutral-500" />
                   )}
                   <div>
-                    <p className="text-sm font-medium text-neutral-800">
+                    <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
                       {invoice.payment_method === "card" ? "Card Payment" : invoice.payment_method === "cod" ? "Cash on Delivery" : "N/A"}
                     </p>
                     {invoice.paid_at && (
-                      <p className="text-xs text-neutral-400">
+                      <p className="text-xs text-neutral-400 dark:text-neutral-500">
                         Paid {new Date(invoice.paid_at).toLocaleDateString("en-US", {
                           year: "numeric", month: "short", day: "numeric"
                         })}
@@ -642,7 +671,7 @@ export default function AdminInvoiceDetailPage() {
                   </div>
                 </div>
                 {invoice.due_date && (
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500">
                     Due {new Date(invoice.due_date).toLocaleDateString("en-US", {
                       year: "numeric", month: "short", day: "numeric"
                     })}
@@ -653,21 +682,21 @@ export default function AdminInvoiceDetailPage() {
 
             {/* Record Payment */}
             {invoice.status !== "paid" && invoice.status !== "refunded" && invoice.status !== "cancelled" && (
-              <div className="rounded-sm border border-neutral-200 bg-white p-5">
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+              <div className="rounded-sm border border-neutral-200 bg-white p-5 dark:bg-neutral-900 dark:border-neutral-800">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
                   Record Payment
                 </h2>
 
-                <p className="mb-4 text-sm text-neutral-700">
+                <p className="mb-4 text-sm text-neutral-700 dark:text-neutral-300">
                   Remaining:{" "}
-                  <span className="font-semibold text-neutral-900">
+                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                     {formatPrice(remaining)}
                   </span>
                 </p>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="mb-1.5 block text-[11px] font-medium text-neutral-400 uppercase tracking-wider">Amount</label>
+                    <label className="mb-1.5 block text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">Amount</label>
                     <div className="grid grid-cols-2 gap-1.5">
                       {PAYMENT_PRESETS.filter((p) => p.value !== "custom").map((preset) => (
                         <button
@@ -678,8 +707,8 @@ export default function AdminInvoiceDetailPage() {
                           }}
                           className={`rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors ${
                             paymentType === preset.value
-                              ? "bg-neutral-800 text-white"
-                              : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                              ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900"
+                              : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
                           }`}
                         >
                           {preset.label}
@@ -689,8 +718,8 @@ export default function AdminInvoiceDetailPage() {
                         onClick={() => setPaymentType("custom")}
                         className={`rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors ${
                           paymentType === "custom"
-                            ? "bg-neutral-800 text-white"
-                            : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                            ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900"
+                            : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700"
                         }`}
                       >
                         Custom
@@ -700,7 +729,7 @@ export default function AdminInvoiceDetailPage() {
 
                   {paymentType === "custom" && (
                     <div>
-                      <label className="mb-1.5 block text-[11px] font-medium text-neutral-400 uppercase tracking-wider">
+                      <label className="mb-1.5 block text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
                         Amount (max {formatPrice(remaining)})
                       </label>
                       <Input
@@ -711,17 +740,17 @@ export default function AdminInvoiceDetailPage() {
                         placeholder="0.00"
                         value={customAmount}
                         onChange={(e) => setCustomAmount(e.target.value)}
-                        className="rounded-sm border-neutral-200 text-sm"
+                        className="rounded-sm border-neutral-200 text-sm dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
                       />
                     </div>
                   )}
 
                   {calculatedAmount > 0 && calculatedAmount !== remaining && (
-                    <div className="rounded-sm bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+                    <div className="rounded-sm bg-neutral-50 px-3 py-2 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
                       Recording{" "}
-                      <span className="font-semibold text-neutral-700">{formatPrice(calculatedAmount)}</span>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-300">{formatPrice(calculatedAmount)}</span>
                       {" · "}After:{" "}
-                      <span className="font-semibold text-neutral-700">{formatPrice(remaining - calculatedAmount)}</span>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-300">{formatPrice(remaining - calculatedAmount)}</span>
                     </div>
                   )}
 
@@ -740,39 +769,54 @@ export default function AdminInvoiceDetailPage() {
             )}
 
             {/* Documents */}
-            <div className="rounded-sm border border-neutral-200 bg-white p-5">
-              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 mb-3">
+            <div className="rounded-sm border border-neutral-200 bg-white p-5 dark:bg-neutral-900 dark:border-neutral-800">
+              <h2 className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-3">
                 Documents
               </h2>
               <div className="space-y-1">
                 <button
-                  onClick={() => openPdfInNewTab(`/admin/invoices/${invoice.id}/pdf`)}
-                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 transition-colors"
+                  onClick={async () => {
+                    if (!invoice) return
+                    try {
+                      await previewInvoicePdf(invoice, meta, companySettings, logoUrl)
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to preview PDF")
+                    }
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <Eye className="size-3.5 text-neutral-400" />
+                  <Eye className="size-3.5 text-neutral-400 dark:text-neutral-500" />
                   <span>Preview Invoice</span>
                 </button>
                 <button
-                  onClick={() => downloadPdf(`/admin/invoices/${invoice.id}/download`, `invoice-${invoice.invoice_number}.pdf`)}
-                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 transition-colors"
+                  onClick={async () => {
+                    if (!invoice) return
+                    try {
+                      await downloadInvoicePdf(invoice, meta, companySettings, logoUrl)
+                      toast.success("PDF downloaded")
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to download PDF")
+                    }
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <Download className="size-3.5 text-neutral-400" />
+                  <Download className="size-3.5 text-neutral-400 dark:text-neutral-500" />
                   <span>Download PDF</span>
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs text-neutral-600 hover:bg-neutral-50 transition-colors"
+                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <Printer className="size-3.5 text-neutral-400" />
+                  <Printer className="size-3.5 text-neutral-400 dark:text-neutral-500" />
                   <span>Print</span>
                 </button>
-                <div className="border-t border-neutral-100 my-2" />
+                <div className="border-t border-neutral-100 dark:border-neutral-800 my-2" />
                 <button
                   onClick={handleSendEmail}
                   disabled={sendingEmail}
-                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs font-medium text-neutral-600 hover:bg-neutral-50 transition-colors disabled:opacity-50"
+                  className="flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
                 >
-                  <Send className="size-3.5 text-neutral-400" />
+                  <Send className="size-3.5 text-neutral-400 dark:text-neutral-500" />
                   <span>{sendingEmail ? "Sending..." : "Send to customer"}</span>
                 </button>
               </div>

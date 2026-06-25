@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
 import { Separator } from "@/components/ui/separator"
@@ -29,12 +30,15 @@ import {
   adminGetExpenseMonthlyReport,
   adminGetExpenseCategoryReport,
   adminGetExpenseCategories,
+  getFinancialDashboard,
+  adminGetProductProfits,
 } from "@/lib/api/services"
 import { formatPrice } from "@/lib/utils"
 import { getApiErrorMessage } from "@/lib/api/client"
 import { useAppDispatch, useAppSelector, selectExpenses, selectExpensesLoading, selectExpensesError, selectExpensesPagination, selectExpensesUpdating } from "@/lib/store"
 import { fetchExpenses, createExpense, updateExpense, deleteExpense, optimisticRemove } from "@/lib/store/expenses-slice"
-import type { Expense, PaginatedResponse, ExpenseMonthData, ExpenseCategoryData, ExpensePayload } from "@/lib/types"
+import type { Expense, PaginatedResponse, ExpenseMonthData, ExpenseCategoryData, ExpensePayload, FinancialDashboardData } from "@/lib/types"
+import type { ProductProfitResponse } from "@/lib/api/services"
 import { toast } from "sonner"
 
 const MONTH_NAMES = [
@@ -83,6 +87,18 @@ export default function AdminExpensesPage() {
   // Pre-defined categories
   const { data: expenseCategories } = useApi<string[] | null>(
     () => adminGetExpenseCategories(),
+    [],
+  )
+
+  // Financial dashboard data for profit metrics
+  const { data: financial } = useApi<FinancialDashboardData | null>(
+    () => getFinancialDashboard(),
+    [],
+  )
+
+  // Product profit breakdown
+  const { data: productProfits, loading: profitLoading } = useApi<ProductProfitResponse | null>(
+    () => adminGetProductProfits(),
     [],
   )
 
@@ -200,6 +216,38 @@ export default function AdminExpensesPage() {
           </div>
         </div>
 
+        {/* Profit overview */}
+        {financial && (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Revenue</p>
+              <p className="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                {formatPrice(financial.total_revenue)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Expenses</p>
+              <p className="mt-1 text-xl font-bold text-red-600 dark:text-red-400">
+                {formatPrice(financial.total_expenses)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Net Profit</p>
+              <p className={`mt-1 text-xl font-bold ${financial.net_profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                {formatPrice(financial.net_profit)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Profit Margin</p>
+              <p className={`mt-1 text-xl font-bold ${financial.total_revenue > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                {financial.total_revenue > 0
+                  ? ((financial.net_profit / financial.total_revenue) * 100).toFixed(1) + "%"
+                  : "—"}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Stats row */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-border bg-card p-4">
@@ -303,6 +351,78 @@ export default function AdminExpensesPage() {
           </div>
         </div>
 
+        {/* Per-Product Profit Breakdown */}
+        <Separator className="my-6" />
+
+        <section className="rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+            <Banknote className="size-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Product Profit Breakdown</h3>
+            {productProfits && (
+              <span className="text-xs text-muted-foreground ml-auto">
+                {productProfits.total_count} products · 
+                Revenue: {formatPrice(productProfits.summary.total_revenue)} · 
+                Cost: {formatPrice(productProfits.summary.total_cost)} · 
+                Profit: <span className={productProfits.summary.total_profit >= 0 ? "text-emerald-600" : "text-red-600"}>
+                  {formatPrice(productProfits.summary.total_profit)}
+                </span>
+              </span>
+            )}
+          </div>
+          <div className="p-5">
+            {profitLoading ? (
+              <div className="space-y-2">
+                {[1,2,3,4,5].map((i) => <Skeleton key={i} className="h-10 w-full rounded-lg" />)}
+              </div>
+            ) : !productProfits || productProfits.data.length === 0 ? (
+              <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+                No product sales data yet. Products need to be sold with purchase prices set.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-3 py-2 text-left font-medium">Product</th>
+                      <th className="px-3 py-2 text-right font-medium">Purchase</th>
+                      <th className="px-3 py-2 text-right font-medium">Selling</th>
+                      <th className="px-3 py-2 text-right font-medium">Sold</th>
+                      <th className="px-3 py-2 text-right font-medium">Revenue</th>
+                      <th className="px-3 py-2 text-right font-medium">Cost</th>
+                      <th className="px-3 py-2 text-right font-medium">Profit</th>
+                      <th className="px-3 py-2 text-right font-medium">Margin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productProfits.data.map((p) => (
+                      <tr key={p.id} className="border-b border-border hover:bg-muted/30">
+                        <td className="px-3 py-2 font-medium">{p.name}</td>
+                        <td className="px-3 py-2 text-right text-muted-foreground">{formatPrice(p.purchase_price)}</td>
+                        <td className="px-3 py-2 text-right">{formatPrice(p.selling_price)}</td>
+                        <td className="px-3 py-2 text-right">{p.total_sold}</td>
+                        <td className="px-3 py-2 text-right text-emerald-600 dark:text-emerald-400">{formatPrice(p.total_revenue)}</td>
+                        <td className="px-3 py-2 text-right text-red-600 dark:text-red-400">{formatPrice(p.total_cost)}</td>
+                        <td className={`px-3 py-2 text-right font-medium ${p.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                          {formatPrice(p.profit)}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                            p.margin_percentage >= 20 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" :
+                            p.margin_percentage > 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" :
+                            "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                          }`}>
+                            {p.margin_percentage}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+
         <Separator className="my-6" />
 
         {/* Form */}
@@ -320,16 +440,16 @@ export default function AdminExpensesPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Category</label>
-                <select
+                <Select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="mt-1 h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="mt-1 w-full"
                 >
                   <option value="">Select category</option>
                   {expenseCategories?.map((cat) => (
                     <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="text-sm font-medium">Date *</label>
@@ -358,16 +478,16 @@ export default function AdminExpensesPage() {
             <div className="flex flex-wrap items-end gap-3">
               <div className="min-w-32 flex-1">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Category</label>
-                <select
+                <Select
                   value={categoryFilter}
                   onChange={(e) => { setCategoryFilter(e.target.value); setPage(1) }}
-                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="w-full"
                 >
                   <option value="">All categories</option>
                   {expenseCategories?.map((cat) => (
                     <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="min-w-40 flex-1">
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">Search</label>

@@ -99,6 +99,10 @@ export interface Product {
   slug: string
   description?: string
   price: number
+  purchase_price: number
+  margin_percentage: number
+  final_price: number
+  discount_price?: number | null
   stock: number
   brand_id?: number
   brand?: Brand
@@ -361,6 +365,13 @@ export interface TaxSettings {
 export interface PublicSettings {
   shipping: ShippingSettings
   tax: TaxSettings
+  logo_url: string
+  company_name?: string
+  company_address?: string
+  company_city?: string
+  company_country?: string
+  company_phone?: string
+  company_email?: string
 }
 
 export interface AdminSettingsResponse {
@@ -368,6 +379,7 @@ export interface AdminSettingsResponse {
   shipping: ShippingSettings
   tax: TaxSettings
   invoice: InvoiceSettings
+  logo_url: string
 }
 
 // =========================
@@ -450,6 +462,9 @@ export interface AdminProductPayload {
   name: string
   description?: string
   price: number
+  purchase_price?: number
+  margin_percentage?: number
+  discount_price?: number | null
   stock?: number
   sku?: string
   thumbnail?: string

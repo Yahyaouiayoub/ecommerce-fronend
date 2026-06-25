@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Banknote,
   Calendar,
+  Check,
   CreditCard,
   FileText,
   MapPin,
@@ -30,6 +31,7 @@ import {
   adminGetOrderPaymentSummary,
   adminGetInvoicePaymentOptions,
   adminRecordPayment,
+  adminUpdateInvoiceStatus,
 } from "@/lib/api/services"
 import { formatPrice } from "@/lib/utils"
 import { getApiErrorMessage } from "@/lib/api/client"
@@ -89,6 +91,7 @@ export default function OrderDetailPage() {
   const [paymentType, setPaymentType] = useState("full")
   const [customAmount, setCustomAmount] = useState("")
   const [recordingPayment, setRecordingPayment] = useState(false)
+  const [markingAsPaid, setMarkingAsPaid] = useState<number | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) router.replace("/login")
@@ -136,6 +139,23 @@ export default function OrderDetailPage() {
       toast.error(getApiErrorMessage(err, "Failed to update status"))
     }
   }, [orderId, order, dispatch])
+
+  const handleMarkAsPaid = useCallback(async (invoice: Invoice) => {
+    const confirmed = window.confirm(
+      `Mark invoice ${invoice.invoice_number} as paid for ${formatPrice(invoice.total_amount)}?`
+    )
+    if (!confirmed) return
+    setMarkingAsPaid(invoice.id)
+    try {
+      await adminUpdateInvoiceStatus(invoice.id, "paid")
+      toast.success(`Invoice ${invoice.invoice_number} marked as paid`)
+      reloadPaymentSummary()
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to mark invoice as paid"))
+    } finally {
+      setMarkingAsPaid(null)
+    }
+  }, [reloadPaymentSummary])
 
   const handleRecordPayment = useCallback(async () => {
     if (!selectedInvoice) return
@@ -589,14 +609,25 @@ export default function OrderDetailPage() {
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {inv.status !== "paid" && (
-                          <Button
-                            size="xs"
-                            variant="outline"
-                            onClick={() => loadPaymentOptions(inv)}
-                          >
-                            <Banknote className="size-3" />
-                            Record payment
-                          </Button>
+                          <>
+                            <Button
+                              size="xs"
+                              variant="default"
+                              disabled={markingAsPaid === inv.id}
+                              onClick={() => handleMarkAsPaid(inv)}
+                            >
+                              <Check className="size-3" />
+                              {markingAsPaid === inv.id ? "..." : "Mark as Paid"}
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => loadPaymentOptions(inv)}
+                            >
+                              <Banknote className="size-3" />
+                              Record payment
+                            </Button>
+                          </>
                         )}
                         <Button
                           size="xs"

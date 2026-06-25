@@ -22,11 +22,18 @@ import {
 } from "@/components/ui/sheet"
 import { useAppSelector, selectCartCount } from "@/lib/store"
 import { useTheme } from "next-themes"
+import { getPublicSettings } from "@/lib/api/services"
+import { getImageUrl } from "@/lib/api/client"
+import { useApi } from "@/lib/hooks/use-api"
+import type { PublicSettings } from "@/lib/types"
+import { useTranslations } from "next-intl"
+import { LanguageSwitcher } from "@/components/language-switcher"
+import { CurrencySwitcher } from "@/components/currency-switcher"
 
 const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/categories", label: "Categories" },
-  { href: "/products", label: "Shop" },
+  { href: "/", labelKey: "home" },
+  { href: "/categories", labelKey: "categories" },
+  { href: "/products", labelKey: "shop" },
 ]
 
 export function Navbar() {
@@ -35,6 +42,9 @@ export function Navbar() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
+  const { data: publicSettings } = useApi<PublicSettings>(() => getPublicSettings(), [])
+  const logoUrl = publicSettings?.logo_url
+  const t = useTranslations("navbar")
 
   useEffect(() => {
     setMounted(true)
@@ -45,7 +55,7 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
         {/* Mobile menu */}
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger>
+          <SheetTrigger asChild>
             <button 
               className="md:hidden p-2 hover:bg-muted/10 rounded-md transition-colors" 
               aria-label="Open menu"
@@ -56,7 +66,15 @@ export function Navbar() {
           <SheetContent side="left" className="w-72">
             <SheetHeader>
               <SheetTitle className="text-left font-mono text-xl tracking-tight">
-                Lumen
+                {logoUrl ? (
+                  <img
+                    src={getImageUrl(logoUrl)}
+                    alt="Store logo"
+                    className="h-7 w-auto max-w-28 object-contain"
+                  />
+                ) : (
+                  "Lumen"
+                )}
               </SheetTitle>
             </SheetHeader>
             <nav className="mt-4 flex flex-col gap-1 px-2">
@@ -72,7 +90,7 @@ export function Navbar() {
                       : "text-muted-foreground",
                   )}
                 >
-                  {link.label}
+                  {t(link.labelKey)}
                 </Link>
               ))}
             </nav>
@@ -80,10 +98,18 @@ export function Navbar() {
         </Sheet>
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <span className="font-mono text-xl font-semibold tracking-tight">
-            Lumen
-          </span>
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          {logoUrl ? (
+            <img
+              src={getImageUrl(logoUrl)}
+              alt="Store logo"
+              className="h-8 w-auto max-w-32 object-contain"
+            />
+          ) : (
+            <span className="font-mono text-xl font-semibold tracking-tight">
+              Lumen
+            </span>
+          )}
         </Link>
 
         {/* Desktop nav */}
@@ -99,7 +125,7 @@ export function Navbar() {
                   : "text-muted-foreground",
               )}
             >
-              {link.label}
+              {t(link.labelKey)}
             </Link>
           ))}
         </nav>
@@ -113,20 +139,24 @@ export function Navbar() {
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               name="search"
-              placeholder="Search products..."
+              placeholder={t("search")}
               className="pl-9"
-              aria-label="Search products"
+              aria-label={t("search")}
             />
           </div>
         </form>
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1 lg:ml-2">
+          {/* Currency Switcher */}
+          <CurrencySwitcher />
+          {/* Language Switcher */}
+          <LanguageSwitcher />
           {/* Theme Toggle */}
           <button
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            aria-label="Toggle theme"
+            aria-label={t("toggle_theme")}
           >
             {mounted && theme === "dark" ? (
               <Sun className="size-5" />
@@ -137,14 +167,14 @@ export function Navbar() {
           <Link 
             href="/profile" 
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            aria-label="Account"
+            aria-label={t("account")}
           >
             <UserIcon className="size-5" />
           </Link>
           <Link 
             href="/cart" 
             className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            aria-label="Cart"
+            aria-label={t("cart")}
           >
             <ShoppingBag className="size-5" />
             {cartCount > 0 && (

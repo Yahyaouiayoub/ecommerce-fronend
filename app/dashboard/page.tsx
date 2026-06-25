@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useRef, useCallback } from "react"
+import { useEffect, useCallback, useRef, useState } from "react"
 import {
   DollarSign,
   TrendingUp,
@@ -18,9 +18,11 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { useApi } from "@/lib/hooks/use-api"
-import { usePolling } from "@/lib/hooks/use-polling"
-import { getDashboardStats, getFinancialDashboard } from "@/lib/api/services"
+import {
+  useDashboardStats,
+  useFinancialData,
+  useDashboardRefresh,
+} from "@/lib/hooks/use-dashboard-queries"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
@@ -40,43 +42,80 @@ export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
 
-  const { data: stats, loading: statsLoading, reload: reloadStats, refresh: refreshStats } = useApi<DashboardStats>(
-    () => getDashboardStats(),
-    [],
-  )
-  const { data: financial, reload: reloadFinancial, refresh: refreshFinancial } = useApi<FinancialDashboardData | null>(
-    () => getFinancialDashboard(),
-    [],
-  )
+  // ── React Query hooks ─────────────────────────────────────────
+  // These replace the old useApi() calls. Benefits:
+  //   - Automatic request deduplication (no need for manual inflight cache)
+  //   - Background refetch without showing loading spinners
+  //   - Shared cache across components (no double-fetching)
+  //   - Proper stale-while-revalidate pattern
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isFetching: statsFetching,
+    isError: statsError,
+  } = useDashboardStats()
 
-  // Separate refreshing state for the Refresh button (doesn't affect UI rendering)
+  const {
+    data: financial,
+  } = useFinancialData()
+
+  const { refreshAll } = useDashboardRefresh()
+
+  // Track manual refresh animation separately from background refetches
   const [refreshing, setRefreshing] = useState(false)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  // ── Manual refresh (silent background update) ─────────────────
   const handleRefresh = useCallback(() => {
     setRefreshing(true)
     clearTimeout(refreshTimerRef.current)
-    refreshTimerRef.current = setTimeout(() => setRefreshing(false), 5000)
+    refreshTimerRef.current = setTimeout(() => setRefreshing(false), 3000)
+    refreshAll()
+  }, [refreshAll])
 
-    // Silent refresh — updates data without setting loading=true
-    refreshStats()
-    refreshFinancial()
-  }, [refreshStats, refreshFinancial])
-
-  // Auto-poll dashboard data every 30 seconds (visibility-aware — pauses when tab hidden)
-  usePolling(
-    useCallback(() => {
-      refreshStats()
-      refreshFinancial()
-    }, [refreshStats, refreshFinancial]),
-    30_000,
-  )
-
+  // ── Auto-poll every 2 minutes (visibility-aware) ──────────────
+  // Polls in the background using React Query's cache invalidation
+  // so the user never sees a loading spinner. Pauses when the tab
+  // is hidden to save bandwidth, resumes on return.
   useEffect(() => {
-    return () => clearTimeout(refreshTimerRef.current)
-  }, [])
+    function startPolling() {
+      // Fire once immediately on visibility change
+      refreshAll()
+      intervalRef.current = setInterval(refreshAll, 2 * 60 * 1000)
+    }
 
-  // Auth guard — only check on initial load
+    function stopPolling() {
+      if (intervalRef.current !== undefined) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = undefined
+      }
+    }
+
+    function onVisibilityChange() {
+      if (document.hidden) {
+        stopPolling()
+      } else {
+        startPolling()
+      }
+    }
+
+    const intervalRef: { current: ReturnType<typeof setInterval> | undefined } = { current: undefined }
+
+    // Start polling if tab is visible
+    if (!document.hidden) {
+      startPolling()
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange)
+
+    return () => {
+      stopPolling()
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+      clearTimeout(refreshTimerRef.current)
+    }
+  }, [refreshAll])
+
+  // ── Auth guard ────────────────────────────────────────────────
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
@@ -87,7 +126,7 @@ export default function DashboardPage() {
     }
   }, [authLoading, user, router])
 
-  // Show loading state only on initial page load
+  // ── Loading state (only on initial page load) ─────────────────
   if (authLoading || (statsLoading && !stats)) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -103,6 +142,38 @@ export default function DashboardPage() {
 
   if (!user || user.role !== "admin") {
     return null
+  }
+
+  // ── Error state ───────────────────────────────────────────────
+  if (statsError && !stats) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+            <p className="mt-1 text-muted-foreground">
+              Welcome back, {user.first_name}. Here&apos;s your store overview.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="gap-1.5"
+          >
+            <RefreshCw className="size-3.5" />
+            Retry
+          </Button>
+        </div>
+        <div className="mt-8">
+          <StateMessage
+            icon={<TrendingUp className="size-6" />}
+            title="Could not load stats"
+            description="Make sure your Laravel API is running and seeded with data."
+          />
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -129,12 +200,11 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Auth guard — after initial load, only render if we have data */}
+      {/* Data section — only render if we have stats */}
       {stats ? (
         <>
           {/* Revenue & Order Stats Cards */}
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            {/* Total Revenue */}
             <StatCard
               label="Total Revenue"
               icon={<DollarSign className="size-3.5" />}
@@ -142,8 +212,6 @@ export default function DashboardPage() {
               value={<AnimatedCounter value={stats.total_revenue} formatCurrency />}
               note={`Net: ${formatPrice(stats.net_revenue)}`}
             />
-
-            {/* Revenue This Month */}
             <StatCard
               label="This Month"
               icon={<Calendar className="size-3.5" />}
@@ -155,8 +223,6 @@ export default function DashboardPage() {
                   : "No revenue yet"
               }
             />
-
-            {/* Revenue Today */}
             <StatCard
               label="Today"
               icon={<Clock className="size-3.5" />}
@@ -168,8 +234,6 @@ export default function DashboardPage() {
                   : "Today's collections"
               }
             />
-
-            {/* Total Orders */}
             <StatCard
               label="Total Orders"
               icon={<ShoppingCart className="size-3.5" />}
@@ -177,8 +241,6 @@ export default function DashboardPage() {
               value={<AnimatedCounter value={stats.total_orders} />}
               note={`${stats.delivered_orders} delivered · ${stats.cancelled_orders} cancelled`}
             />
-
-            {/* Delivered Orders */}
             <StatCard
               label="Delivered"
               icon={<TrendingUp className="size-3.5" />}
@@ -190,8 +252,6 @@ export default function DashboardPage() {
                   : "No orders yet"
               }
             />
-
-            {/* Pending Orders */}
             <StatCard
               label="Pending"
               icon={<Clock className="size-3.5" />}
@@ -444,7 +504,6 @@ function StatCard({
 }) {
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      {/* Subtle top accent line — matches the icon color using same class with opacity */}
       <div className={`absolute inset-x-0 top-0 h-0.5 rounded-t-xl ${iconClass} opacity-80`} />
       
       <div className="flex items-center justify-between">
@@ -474,7 +533,6 @@ function InvoiceStatCard({
 }) {
   return (
     <div className="group relative overflow-hidden rounded-xl border border-border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      {/* Subtle top accent line */}
       <div className="absolute inset-x-0 top-0 h-0.5 rounded-t-xl bg-border" />
       <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
         {label}

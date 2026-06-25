@@ -13,10 +13,13 @@ import {
   X,
   Upload,
   Star,
+  Eye,
+  EyeOff,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Select } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
 import { useAuth } from "@/lib/hooks/use-auth"
@@ -81,6 +84,7 @@ export default function AdminProductsPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([])
   const [deleteImageIds, setDeleteImageIds] = useState<number[]>([])
   const [removeThumbnail, setRemoveThumbnail] = useState(false)
+  const [showCostFields, setShowCostFields] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const thumbnailInputRef = useRef<HTMLInputElement>(null)
 
@@ -89,6 +93,9 @@ export default function AdminProductsPage() {
       category_id: 0,
       name: "",
       price: "",
+      purchase_price: "",
+      margin_percentage: "",
+      discount_price: "",
       stock: "0",
       description: "",
       brand_id: 0,
@@ -133,6 +140,9 @@ export default function AdminProductsPage() {
       category_id: product.category_id,
       name: product.name,
       price: String(product.price),
+      purchase_price: String(product.purchase_price ?? 0),
+      margin_percentage: String(product.margin_percentage ?? 0),
+      discount_price: product.discount_price ? String(product.discount_price) : "",
       stock: String(product.stock),
       description: product.description ?? "",
       brand_id: product.brand_id ?? 0,
@@ -205,6 +215,9 @@ export default function AdminProductsPage() {
       formData.append("category_id", String(form.category_id))
       formData.append("name", form.name)
       formData.append("price", form.price)
+      formData.append("purchase_price", form.purchase_price || "0")
+      formData.append("margin_percentage", form.margin_percentage || "0")
+      formData.append("discount_price", form.discount_price || "")
       formData.append("stock", String(parseInt(form.stock) || 0))
       if (form.description) formData.append("description", form.description)
       if (form.brand_id) formData.append("brand_id", String(form.brand_id))
@@ -302,11 +315,11 @@ export default function AdminProductsPage() {
               <div>
                 <label className="text-sm font-medium">Category *</label>
                 <div className="mt-1 flex gap-1">
-                  <select
+                  <Select
                     value={form.category_id}
                     onChange={(e) => setForm({ ...form, category_id: Number(e.target.value) })}
                     required
-                    className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="flex-1"
                   >
                     <option value={0}>Select category</option>
                     {displayCategories?.map((cat) => (
@@ -314,7 +327,7 @@ export default function AdminProductsPage() {
                         {cat.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     type="button"
                     onClick={() => { setShowNewCategory(true); setShowNewBrand(false) }}
@@ -362,7 +375,46 @@ export default function AdminProductsPage() {
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium">Price *</label>
+                <label className="text-sm font-medium">Purchase Price *</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.purchase_price}
+                  onChange={(e) => {
+                    const pp = e.target.value
+                    const mp = form.margin_percentage
+                    const fp = pp && mp ? (parseFloat(pp) + (parseFloat(pp) * parseFloat(mp) / 100)).toFixed(2) : ""
+                    setForm({ ...form, purchase_price: pp, price: fp })
+                  }}
+                  required
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Margin (%)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.margin_percentage}
+                  onChange={(e) => {
+                    const mp = e.target.value
+                    const pp = form.purchase_price
+                    const fp = pp && mp ? (parseFloat(pp) + (parseFloat(pp) * parseFloat(mp) / 100)).toFixed(2) : ""
+                    setForm({ ...form, margin_percentage: mp, price: fp })
+                  }}
+                  placeholder="e.g. 30"
+                  className="mt-1"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {form.purchase_price && form.margin_percentage
+                    ? `Final: ${formatPrice(parseFloat(form.price) || 0)}`
+                    : "Enter purchase price and margin to auto-calculate"}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Selling Price *</label>
                 <Input
                   type="number"
                   step="0.01"
@@ -370,8 +422,29 @@ export default function AdminProductsPage() {
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
                   required
-                  className="mt-1"
+                  disabled
+                  className="mt-1 opacity-80"
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Auto-calculated from purchase price + margin
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Discount Price</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.discount_price}
+                  onChange={(e) => setForm({ ...form, discount_price: e.target.value })}
+                  className="mt-1"
+                  placeholder="Optional sale price"
+                />
+                {form.discount_price && form.purchase_price && parseFloat(form.discount_price) < parseFloat(form.purchase_price) && (
+                  <p className="mt-1 text-xs text-destructive font-medium">
+                    ⚠ Discount would cause loss! Discount price is less than purchase price.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium">Stock</label>
@@ -386,10 +459,10 @@ export default function AdminProductsPage() {
               <div>
                 <label className="text-sm font-medium">Brand</label>
                 <div className="mt-1 flex gap-1">
-                  <select
+                  <Select
                     value={form.brand_id}
                     onChange={(e) => setForm({ ...form, brand_id: Number(e.target.value) })}
-                    className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2.5 text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                    className="flex-1"
                   >
                     <option value={0}>No brand</option>
                     {displayBrands?.map((brand) => (
@@ -397,7 +470,7 @@ export default function AdminProductsPage() {
                         {brand.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <button
                     type="button"
                     onClick={() => { setShowNewBrand(true); setShowNewCategory(false) }}
@@ -612,7 +685,7 @@ export default function AdminProductsPage() {
           </form>
         )}
 
-        {/* Search */}
+        {/* Search & Cost fields toggle */}
         <div className="mt-6 flex items-center gap-3">
           <div className="relative max-w-xs flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -623,6 +696,19 @@ export default function AdminProductsPage() {
               className="pl-9"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => setShowCostFields((v) => !v)}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              showCostFields
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted"
+            }`}
+            title={showCostFields ? "Hide cost fields" : "Show cost fields"}
+          >
+            {showCostFields ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+            {showCostFields ? "Hide costs" : "Show costs"}
+          </button>
           <span className="text-sm text-muted-foreground">
             {items ? `${pagination.total} results` : ""}
           </span>
@@ -655,7 +741,9 @@ export default function AdminProductsPage() {
                 <tr className="border-b border-border bg-muted/50">
                   <th className="px-4 py-3 text-left font-medium">Product</th>
                   <th className="px-4 py-3 text-left font-medium">Category</th>
-                  <th className="px-4 py-3 text-left font-medium">Price</th>
+                  {showCostFields && <th className="px-4 py-3 text-right font-medium">Purchase</th>}
+                  {showCostFields && <th className="px-4 py-3 text-right font-medium">Margin</th>}
+                  <th className="px-4 py-3 text-right font-medium">Selling</th>
                   <th className="px-4 py-3 text-left font-medium">Stock</th>
                   <th className="px-4 py-3 text-left font-medium">Images</th>
                   <th className="px-4 py-3 text-left font-medium">Status</th>
@@ -685,7 +773,22 @@ export default function AdminProductsPage() {
                     <td className="px-4 py-3 text-muted-foreground">
                       {product.category?.name ?? "—"}
                     </td>
-                    <td className="px-4 py-3 font-medium">{formatPrice(product.price)}</td>
+                    {showCostFields && (
+                      <td className="px-4 py-3 text-right text-muted-foreground">{formatPrice(product.purchase_price ?? 0)}</td>
+                    )}
+                    {showCostFields && (
+                      <td className="px-4 py-3 text-right">
+                        <span className={product.margin_percentage > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+                          {product.margin_percentage ?? 0}%
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-4 py-3 text-right font-medium">
+                      <span>{formatPrice(product.final_price ?? product.price)}</span>
+                      {product.discount_price && (
+                        <span className="ml-1 text-xs text-red-500 line-through">{formatPrice(product.discount_price)}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <Badge variant={product.stock > 5 ? "default" : product.stock > 0 ? "secondary" : "outline"}>
                         {product.stock > 5 ? product.stock : product.stock > 0 ? `Low: ${product.stock}` : "Out"}
