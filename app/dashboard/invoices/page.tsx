@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useState, useMemo, useRef } from "react"
+import { Suspense, useEffect, useState, useMemo, useRef } from "react"
 import {
   AlertCircle,
   Receipt,
@@ -69,6 +69,14 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function AdminInvoicesPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminInvoicesContent />
+    </Suspense>
+  )
+}
+
+function AdminInvoicesContent() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const dispatch = useAppDispatch()
@@ -76,6 +84,13 @@ export default function AdminInvoicesPage() {
   const loading = useAppSelector((state) => state.invoices.loading)
   const pagination = useAppSelector(selectInvoicesPagination)
   const updatingIds = useAppSelector((state) => state.invoices.updatingIds)
+
+  // Read initial status from URL query params (e.g., from refund alert link)
+  const [initialStatus] = useState(() => {
+    if (typeof window === "undefined") return ""
+    const params = new URLSearchParams(window.location.search)
+    return params.get("status") ?? ""
+  })
 
   // Refresh loading state — auto-clears after 5s timeout
   const [refreshing, setRefreshing] = useState(false)
@@ -93,13 +108,13 @@ export default function AdminInvoicesPage() {
   }, [])
 
   // Filters
-  const [statusFilter, setStatusFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState(initialStatus)
   const [paymentMethodFilter, setPaymentMethodFilter] = useState("")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [page, setPage] = useState(1)
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(!!initialStatus)
 
   // Stats
   const { data: stats, reload: reloadStats } = useApi<InvoiceStats | null>(

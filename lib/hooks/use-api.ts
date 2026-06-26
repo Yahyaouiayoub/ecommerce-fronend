@@ -12,43 +12,63 @@ interface UseApiResult<T> {
   refresh: () => void
 }
 
+interface UseApiOptions {
+  /** Keep showing the previous data while new data is loading (prevents UI flicker). */
+  keepPreviousData?: boolean
+}
+
 // ── In-flight request deduplication cache ────────────────────────
 const inflightCache = new Map<string, Promise<unknown>>()
 const dataCache = new Map<string, { data: unknown; ts: number }>()
-const CACHE_TTL = 30_000 // 30 seconds
+const CACHE_TTL = 60_000 // 60 seconds (doubled from 30s)
 
 // Incrementing counter used as fallback when toString() yields a generic body
 let fnCounter = 0
 const fnKeyMap = new Map<string, string>()
 
 /**
- * Generates a stable cache key from the fetcher function's source.
- * Uses the function body as the key when possible (handles inline arrows).
+ * Generates a stable cache key from the fetcher function's source and its dependencies.
+ *
+ * Including the deps ensures the cache differentiates between calls with different
+ * arguments (e.g. category filters, search queries, page numbers). Without this,
+ * inline arrows like `() => getProducts(query)` always stringify to the same
+ * source, causing stale cached data to be returned when filter params change.
  */
-function getCacheKey(fn: () => unknown): string {
-  // Try function body text — works for inline arrows like () => getCategories()
+function getCacheKey(fn: () => unknown, deps: unknown[]): string {
   const fnText = fn.toString()
-  const existing = fnKeyMap.get(fnText)
+  // Serialize deps into the key so different filter states get unique entries
+  const depFingerprint = deps
+    .map((d) => (typeof d === "object" || typeof d === "undefined" ? "" : String(d)))
+    .join("‣")
+  const combined = `${fnText}::${depFingerprint}`
+  const existing = fnKeyMap.get(combined)
   if (existing) return existing
   const key = `api_${++fnCounter}`
-  fnKeyMap.set(fnText, key)
+  fnKeyMap.set(combined, key)
   return key
 }
 
 /**
  * Enhanced data-fetching hook with:
  * - In-flight request deduplication (same fetcher call shares one promise)
- * - Short-lived result cache (30s TTL; cleared on reload)
+ * - Short-lived result cache (60s TTL; cleared on reload)
+ * - keepPreviousData (stale data stays visible during background refetch)
  * - Standard loading / error / reload pattern
+ *
+ * Note: No AbortController — the mounted flag already prevents state
+ * updates on unmounted components, and using AbortSignal would corrupt
+ * the inflight cache when effects re-run (StrictMode, fast navigation).
  */
 export function useApi<T>(
   fetcher: () => Promise<T>,
-  deps: unknown[] = []
+  deps: unknown[] = [],
+  options?: UseApiOptions,
 ): UseApiResult<T> {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
-  const cacheKey = getCacheKey(fetcher)
+  const prevDataRef = useRef<T | null>(null)
+  const cacheKey = getCacheKey(fetcher, deps)
 
   const run = useCallback((silent?: boolean) => {
     let mounted = true
@@ -80,6 +100,7 @@ export function useApi<T>(
       .then((result) => {
         if (mounted) {
           dataCache.set(cacheKey, { data: result, ts: Date.now() })
+          prevDataRef.current = result as T
           setData(result as T)
           if (!silent) setLoading(false)
         }
@@ -99,7 +120,9 @@ export function useApi<T>(
 
   useEffect(() => {
     const cleanup = run()
-    return cleanup
+    return () => {
+      cleanup?.()
+    }
   }, [run])
 
   // Reload — clears cache, shows loading state
@@ -118,5 +141,81 @@ export function useApi<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run, cacheKey])
 
-  return { data, error, loading, reload, refresh }
+  // When keepPreviousData is enabled and we have previous data, keep showing it during loading
+  const displayData = options?.keepPreviousData && loading && prevDataRef.current
+    ? prevDataRef.current
+    : data
+
+  return { data: displayData, error, loading, reload, refresh }
+}
+
+// ── Shared singleton fetchers (eliminate duplicate requests across components) ──
+//
+// These use module-level promise caching so that if multiple components mount
+// simultaneously (e.g. navbar + footer + homepage all need getPublicSettings),
+// only ONE network request is ever made. The promise is shared.
+
+const singletonCache = new Map<string, { promise: Promise<unknown>; data: unknown | null }>()
+
+/**
+ * useSharedData — Fetches data once and shares the result across all callers.
+ * Subsequent calls return the cached data immediately without a network request.
+ * The optional staleTime controls how often the data is refreshed.
+ */
+export function useSharedData<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  staleTime: number = 5 * 60 * 1000, // default 5 minutes
+): { data: T | null; loading: boolean; error: unknown } {
+  const [data, setData] = useState<T | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+    const cached = singletonCache.get(key)
+
+    if (cached && cached.data !== null) {
+      setData(cached.data as T)
+      setLoading(false)
+      return
+    }
+
+    if (cached?.promise) {
+      cached.promise
+        .then((result) => {
+          if (mounted) {
+            singletonCache.set(key, { promise: cached.promise, data: result })
+            setData(result as T)
+            setLoading(false)
+          }
+        })
+        .catch((err) => {
+          if (mounted) { setError(err); setLoading(false) }
+        })
+      return
+    }
+
+    const promise = fetcher()
+    singletonCache.set(key, { promise, data: null })
+
+    promise
+      .then((result) => {
+        if (mounted) {
+          singletonCache.set(key, { promise, data: result })
+          setData(result as T)
+          setLoading(false)
+          // Schedule cache refresh
+          setTimeout(() => singletonCache.delete(key), staleTime)
+        }
+      })
+      .catch((err) => {
+        if (mounted) { setError(err); setLoading(false) }
+      })
+
+    return () => { mounted = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, staleTime])
+
+  return { data, loading, error }
 }

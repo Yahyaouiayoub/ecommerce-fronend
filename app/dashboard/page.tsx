@@ -16,6 +16,7 @@ import {
   ShoppingCart,
   RefreshCw,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react"
 import { useAuth } from "@/lib/hooks/use-auth"
 import {
@@ -278,6 +279,28 @@ export default function DashboardPage() {
             <RevenueChart data={stats.revenue_by_month} />
             <OrdersChart data={stats.orders_by_month} />
           </div>
+
+          {/* Refund Alert */}
+          {stats.refund_alert_count > 0 && (
+            <div className="mt-6 rounded-xl border border-red-200 bg-red-50/50 p-4 dark:border-red-800 dark:bg-red-950/20">
+              <div className="flex items-center gap-2 text-red-800 dark:text-red-300">
+                <RotateCcw className="size-5" />
+                <span className="font-medium">Refund Required</span>
+              </div>
+              <div className="mt-2 text-sm text-red-700 dark:text-red-400">
+                <p>
+                  {stats.refund_alert_count} cancelled order{stats.refund_alert_count > 1 ? "s" : ""} still have paid invoice{stats.refund_alert_count > 1 ? "s" : ""}.
+                </p>
+                <p className="mt-1">Please review and refund these invoices to keep your records accurate.</p>
+              </div>
+              <Link
+                href="/dashboard/invoices?status=paid"
+                className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-red-800 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200 underline underline-offset-2"
+              >
+                Review Refunds <ChevronRight className="size-3.5" />
+              </Link>
+            </div>
+          )}
 
           {/* Inventory Alerts */}
           {(stats.low_stock_products > 0 || stats.out_of_stock > 0) && (

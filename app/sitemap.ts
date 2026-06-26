@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next"
 import { api } from "@/lib/api/client"
+import { categoryUrl, productUrl } from "@/lib/product-url"
 
 const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
 
@@ -20,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (Array.isArray(categories)) {
       for (const cat of categories) {
         staticPages.push({
-          url: `${BASE_URL}/products?category_id=${(cat as any).id}`,
+          url: categoryUrl((cat as any).id),
           lastModified: new Date((cat as any).updated_at ?? new Date()),
           changeFrequency: "daily",
           priority: 0.7,
@@ -41,7 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (productsPage?.data) {
       for (const product of productsPage.data) {
         staticPages.push({
-          url: `${BASE_URL}/products/${product.id}`,
+          url: productUrl(product.slug),
           lastModified: new Date(product.updated_at ?? new Date()),
           changeFrequency: "weekly",
           priority: 0.8,

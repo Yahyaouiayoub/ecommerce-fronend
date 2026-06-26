@@ -93,6 +93,32 @@ export interface CreateReviewPayload {
   comment?: string
 }
 
+export interface ProductVariant {
+  id: number
+  product_id: number
+  name: string
+  price: number | null
+  effective_price: number
+  price_formatted: string
+  stock: number
+  sku: string | null
+  color: string | null
+  size: string | null
+  storage: string | null
+  attributes: Record<string, string> | null
+  is_default: boolean
+  sort_order: number
+  in_stock: boolean
+  stock_status: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface AttributeGroup {
+  label: string
+  options: Record<string, { value: string; variant_id: number }>
+}
+
 export interface Product {
   id: number
   name: string
@@ -115,6 +141,8 @@ export interface Product {
   images?: ProductImage[]
   reviews_avg_rating?: number
   reviews_count?: number
+  variants?: ProductVariant[]
+  related_products?: Product[]
 }
 
 export interface CartItem {
@@ -134,12 +162,19 @@ export interface OrderItem {
 
 export interface Payment {
   id: number
+  invoice_id: number
   order_id: number
   amount: number
+  amount_formatted: string
   currency: string
   payment_method: string
+  payment_type: string
+  payment_type_label: string
   status: string
+  status_label: string
+  transaction_id?: string
   paid_at?: string
+  created_at: string
 }
 
 export interface InvoicePayment {
@@ -374,6 +409,10 @@ export interface PublicSettings {
   company_email?: string
 }
 
+export interface PublicSettingsWithPayPal extends PublicSettings {
+  paypal_enabled?: boolean
+}
+
 export interface AdminSettingsResponse {
   settings: Record<string, Record<string, string>>
   shipping: ShippingSettings
@@ -444,6 +483,9 @@ export interface DashboardStats {
   failed_invoices: number
   cancelled_invoices: number
   total_pending_amount: number
+
+  // Refund alert
+  refund_alert_count: number
 
   // Recent orders
   recent_orders: {

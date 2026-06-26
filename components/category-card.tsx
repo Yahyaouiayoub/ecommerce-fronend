@@ -4,6 +4,7 @@ import type { Category } from "@/lib/types"
 import { getImageUrl } from "@/lib/api/client"
 import { StoreImage } from "@/components/store-image"
 import { cn } from "@/lib/utils"
+import { categoryPath } from "@/lib/product-url"
 
 interface CategoryCardProps {
   category: Category
@@ -15,7 +16,7 @@ export function CategoryCard({ category, className }: CategoryCardProps) {
 
   return (
     <Link
-      href={`/products?category_id=${category.id}`}
+      href={categoryPath(category.id)}
       className={cn(
         "group relative flex aspect-[4/5] flex-col justify-end overflow-hidden rounded-xl border border-border",
         className,

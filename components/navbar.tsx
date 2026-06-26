@@ -10,6 +10,8 @@ import {
   User as UserIcon,
   Moon,
   Sun,
+  CreditCard,
+  Package,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -24,9 +26,15 @@ import { useAppSelector, selectCartCount } from "@/lib/store"
 import { useTheme } from "next-themes"
 import { getPublicSettings } from "@/lib/api/services"
 import { getImageUrl } from "@/lib/api/client"
-import { useApi } from "@/lib/hooks/use-api"
+import { useSharedData } from "@/lib/hooks/use-api"
 import type { PublicSettings } from "@/lib/types"
 import { useTranslations } from "next-intl"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
 
 const NAV_LINKS = [
   { href: "/", labelKey: "home" },
@@ -40,7 +48,7 @@ export function Navbar() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
-  const { data: publicSettings } = useApi<PublicSettings>(() => getPublicSettings(), [])
+  const { data: publicSettings } = useSharedData<PublicSettings>("publicSettings", getPublicSettings)
   const logoUrl = publicSettings?.logo_url
   const t = useTranslations("navbar")
 
@@ -92,6 +100,36 @@ export function Navbar() {
                 </Link>
               ))}
             </nav>
+
+            <div className="mt-6 border-t border-border px-2 pt-4">
+              <p className="mb-2 px-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Account
+              </p>
+              <Link
+                href="/profile"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
+              >
+                <UserIcon className="size-4" />
+                Profile
+              </Link>
+              <Link
+                href="/orders"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
+              >
+                <Package className="size-4" />
+                Orders
+              </Link>
+              <Link
+                href="/payments"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
+              >
+                <CreditCard className="size-4" />
+                Payment History
+              </Link>
+            </div>
           </SheetContent>
         </Sheet>
 
@@ -159,13 +197,31 @@ export function Navbar() {
               <Moon className="size-5" />
             )}
           </button>
-          <Link 
-            href="/profile" 
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-            aria-label={t("account")}
-          >
-            <UserIcon className="size-5" />
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors" aria-label={t("account")}>
+              <UserIcon className="size-5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem>
+                <Link href="/profile" className="flex items-center gap-2 w-full">
+                  <UserIcon className="size-4" />
+                  Profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Link href="/orders" className="flex items-center gap-2 w-full">
+                  <Package className="size-4" />
+                  Orders
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Link href="/payments" className="flex items-center gap-2 w-full">
+                  <CreditCard className="size-4" />
+                  Payment History
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link 
             href="/cart" 
             className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"

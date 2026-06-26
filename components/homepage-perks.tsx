@@ -2,14 +2,14 @@
 
 import { Leaf, ShieldCheck, Truck } from "lucide-react"
 import { getPublicSettings } from "@/lib/api/services"
-import { useApi } from "@/lib/hooks/use-api"
+import { useSharedData } from "@/lib/hooks/use-api"
 import { formatPrice } from "@/lib/utils"
 import type { PublicSettings } from "@/lib/types"
 import { useTranslations } from "next-intl"
 
 export function HomepagePerks() {
   const t = useTranslations("home")
-  const { data } = useApi<PublicSettings>(() => getPublicSettings(), [])
+  const { data } = useSharedData<PublicSettings>("publicSettings", getPublicSettings)
 
   const shippingMsg = data?.shipping?.enabled
     ? data.shipping.free_shipping

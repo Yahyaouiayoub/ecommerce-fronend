@@ -8,6 +8,7 @@ import { StateMessage } from "@/components/state-message"
 import { StoreImage } from "@/components/store-image"
 import { toast } from "sonner"
 import { cn, formatPrice } from "@/lib/utils"
+import { productPath } from "@/lib/product-url"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import { useAppDispatch, useAppSelector, selectCartItems } from "@/lib/store"
 import {
@@ -52,7 +53,7 @@ export default function CartPage() {
                 {items.map((item) => (
                   <li key={item.id} className="flex gap-4 p-4">
                     <Link
-                      href={`/products/${item.id}`}
+                      href={productPath(item.slug)}
                       className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border bg-muted"
                     >
                       <StoreImage
@@ -67,7 +68,7 @@ export default function CartPage() {
                     <div className="flex flex-1 flex-col">
                       <div className="flex items-start justify-between gap-2">
                         <Link
-                          href={`/products/${item.id}`}
+                          href={productPath(item.slug)}
                           className="font-medium text-foreground hover:underline"
                         >
                           {item.name}

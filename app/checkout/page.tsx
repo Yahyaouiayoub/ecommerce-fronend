@@ -20,15 +20,17 @@ import {
 } from "@/lib/store"
 import { clearCartAsync } from "@/lib/store/cart-slice"
 import { createOrder, getAddresses, createAddress, updateAddress, deleteAddress, getPublicSettings, getPublicShippingMethods, type CheckoutPayload } from "@/lib/api/services"
+import { api } from "@/lib/api/client"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { useApi } from "@/lib/hooks/use-api"
+import { useSharedData } from "@/lib/hooks/use-api"
 import type { Address, PublicSettings, ShippingSettings, ShippingMethod } from "@/lib/types"
+import type { PublicSettingsWithPayPal } from "@/lib/types"
 import { toast } from "sonner"
 import { useTranslations } from "next-intl"
 
-const PAYMENT_METHODS = [
-  { value: "card" },
-  { value: "cod" },
+const PAYMENT_METHODS_BASE = [
+  { value: "card", labelKey: "credit_debit_card" },
+  { value: "cod", labelKey: "cash_on_delivery" },
 ]
 
 export default function CheckoutPage() {
@@ -42,11 +44,17 @@ export default function CheckoutPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
 
-  const [submitting, setSubmitting] = useState(false)
   const [payment, setPayment] = useState("cod")
+  const [submitting, setSubmitting] = useState(false)
   const [selectedShippingMethodId, setSelectedShippingMethodId] = useState<number | null>(null)
-  const { data: settings } = useApi<PublicSettings>(() => getPublicSettings(), [])
-  const { data: shippingMethods } = useApi<ShippingMethod[]>(() => getPublicShippingMethods(), [])
+  const { data: settings } = useSharedData<PublicSettingsWithPayPal>("publicSettings", getPublicSettings)
+
+  // Compute available payment methods dynamically based on whether PayPal is enabled
+  const paymentMethods: { value: string; labelKey?: string }[] = [
+    ...PAYMENT_METHODS_BASE,
+    ...((settings as any)?.paypal_enabled ? [{ value: "paypal" }] : []),
+  ]
+  const { data: shippingMethods } = useSharedData<ShippingMethod[]>("shippingMethods", getPublicShippingMethods)
   const shipSettings: ShippingSettings = settings?.shipping ?? {
     enabled: true,
     free_shipping: true,
@@ -252,8 +260,28 @@ export default function CheckoutPage() {
         }
       }
 
+      // Create the order
       const order = await createOrder(payload)
-      // Clear cart on server first, then redirect
+
+      // If PayPal, redirect to PayPal for payment
+      if (payment === "paypal") {
+        try {
+          const { data: paypalData } = await api.post("/paypal/create", { order_id: order.id })
+          if (paypalData?.data?.approval_url) {
+            // Clear cart locally
+            await dispatch(clearCartAsync()).unwrap()
+            // Redirect to PayPal
+            window.location.href = paypalData.data.approval_url
+            return
+          }
+        } catch (err: unknown) {
+          toast.error("Failed to initiate PayPal payment. Please try again.")
+          setSubmitting(false)
+          return
+        }
+      }
+
+      // Clear cart and redirect to confirmation
       await dispatch(clearCartAsync()).unwrap()
       toast.success("Order placed successfully")
       router.push(`/order-confirmation/${order.id}`)
@@ -745,11 +773,10 @@ export default function CheckoutPage() {
               </section>
             )}
 
-            {/* Payment method */}
-            <section className="rounded-xl border border-border bg-card p-6">
+            {/* Payment method */}              <section className="rounded-xl border border-border bg-card p-6">
               <h2 className="text-lg font-semibold">Payment method</h2>
               <div className="mt-4 flex flex-col gap-2">
-                {PAYMENT_METHODS.map((method) => (
+                {paymentMethods.map((method) => (
                   <label
                     key={method.value}
                     className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-4 py-3 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/5"
@@ -762,7 +789,7 @@ export default function CheckoutPage() {
                       onChange={() => setPayment(method.value)}
                       className="accent-accent"
                     />
-                    {t(method.value === "card" ? "credit_debit_card" : "cash_on_delivery")}
+                    {method.labelKey ? t(method.labelKey) : "PayPal"}
                   </label>
                 ))}
               </div>

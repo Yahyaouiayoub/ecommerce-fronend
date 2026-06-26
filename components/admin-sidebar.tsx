@@ -20,6 +20,7 @@ import {
   Sun,
   PanelLeft,
   Receipt,
+  CreditCard,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/sidebar-context"
@@ -32,9 +33,11 @@ const NAV_ITEMS = [
   { href: "/dashboard/brands", label: "Brands", icon: Tag },
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingCart },
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
+  { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
   { href: "/dashboard/carts", label: "Carts", icon: ClipboardList },
   { href: "/dashboard/expenses", label: "Expenses", icon: Banknote },
   { href: "/dashboard/settings", label: "Settings", icon: Settings2 },
+  { href: "/dashboard/settings/paypal", label: "PayPal", icon: CreditCard },
   { href: "/dashboard/users", label: "Users", icon: Users },
 ]
 

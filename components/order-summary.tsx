@@ -4,8 +4,8 @@ import { useAppSelector, selectCartSubtotal, selectCartCount } from "@/lib/store
 import { formatPrice } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { getPublicSettings } from "@/lib/api/services"
-import { useApi } from "@/lib/hooks/use-api"
-import type { ShippingSettings, TaxSettings, ShippingMethod } from "@/lib/types"
+import { useSharedData } from "@/lib/hooks/use-api"
+import type { ShippingSettings, TaxSettings, ShippingMethod, PublicSettings } from "@/lib/types"
 import { useTranslations } from "next-intl"
 
 const DEFAULT_SHIPPING: ShippingSettings = {
@@ -33,7 +33,7 @@ export function useOrderTotals(selectedShippingCost?: number) {
   const subtotal = useAppSelector(selectCartSubtotal)
   const count = useAppSelector(selectCartCount)
 
-  const { data: settings } = useApi(() => getPublicSettings(), [])
+  const { data: settings } = useSharedData<PublicSettings>("publicSettings", getPublicSettings)
   const ship = settings?.shipping ?? DEFAULT_SHIPPING
   const taxSettings = settings?.tax ?? DEFAULT_TAX
 

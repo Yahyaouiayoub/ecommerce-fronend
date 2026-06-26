@@ -4,6 +4,8 @@ import type {
   Brand,
   Category,
   Product,
+  ProductVariant,
+  AttributeGroup,
   CartItem,
   Order,
   Payment,
@@ -205,7 +207,7 @@ export async function getProducts(params: ProductQuery = {}) {
   return data
 }
 
-export async function getProduct(id: number) {
+export async function getProduct(id: number | string) {
   const { data } = await api.get<Product>(`/products/${id}`)
   return data
 }
@@ -289,10 +291,11 @@ export async function getCart() {
   return data
 }
 
-export async function addToCart(product_id: number, quantity: number = 1) {
+export async function addToCart(product_id: number, quantity: number = 1, variant_id?: number) {
   const { data } = await api.post<{ cart: CartItem; message: string }>("/cart", {
     product_id,
     quantity,
+    variant_id,
   })
   return data
 }
@@ -635,6 +638,25 @@ export async function getUserInvoice(id: number) {
 }
 
 // =========================
+// ADMIN: PAYMENTS
+// =========================
+
+export interface AdminPaymentQuery {
+  invoice_id?: number
+  order_id?: number
+  payment_type?: string
+  date_from?: string
+  date_to?: string
+  page?: number
+  per_page?: number
+}
+
+export async function adminGetPayments(params?: AdminPaymentQuery) {
+  const { data } = await api.get<PaginatedResponse<Payment>>("/admin/payments", { params })
+  return data
+}
+
+// =========================
 // ADMIN: INVOICES & PAYMENTS
 // =========================
 
@@ -727,6 +749,20 @@ export async function adminGetExpenseCategories() {
 export async function getPayments() {
   const { data } = await api.get<{ data: InvoicePayment[] }>("/payments")
   return data.data
+}
+
+// =========================
+// PRODUCT VARIANTS
+// =========================
+
+export interface VariantResponse {
+  data: ProductVariant[]
+  attribute_groups: Record<string, AttributeGroup>
+}
+
+export async function getProductVariants(productId: number) {
+  const { data } = await api.get<VariantResponse>(`/products/${productId}/variants`)
+  return data
 }
 
 // =========================

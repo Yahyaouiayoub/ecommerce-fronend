@@ -2,13 +2,14 @@ import { SiteShell } from "@/components/site-shell"
 import { ProductDetail } from "@/components/product-detail"
 import { ProductDetailJsonLd } from "@/components/product-detail"
 import { BreadcrumbJsonLd } from "@/components/breadcrumb-jsonld"
+import { categoryUrl, productUrl, SITE_URL } from "@/lib/product-url"
 import type { Metadata } from "next"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
-async function getProduct(id: string) {
+async function getProduct(slug: string) {
   try {
-    const res = await fetch(`${API_URL}/products/${id}`, {
+    const res = await fetch(`${API_URL}/products/${slug}`, {
       next: { revalidate: 60 },
     })
     if (!res.ok) return null
@@ -21,10 +22,10 @@ async function getProduct(id: string) {
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }): Promise<Metadata> {
-  const { id } = await params
-  const product = await getProduct(id)
+  const { slug } = await params
+  const product = await getProduct(slug)
 
   if (!product) {
     return {
@@ -43,7 +44,7 @@ export async function generateMetadata({
     title: `${product.name}`,
     description: product.description?.slice(0, 160) ?? `${product.name} — ${product.price} MAD`,
     alternates: {
-      canonical: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products/${product.id}`,
+      canonical: productUrl(product.slug),
     },
     openGraph: {
       title: `${product.name} | Lumen`,
@@ -63,13 +64,13 @@ export async function generateMetadata({
 export default async function ProductDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>
+  params: Promise<{ slug: string }>
 }) {
-  const { id } = await params
+  const { slug } = await params
 
   let productJson: Record<string, unknown> | null = null
   try {
-    productJson = await getProduct(id)
+    productJson = await getProduct(slug)
   } catch {
     // Ignore — ProductDetail handles errors client-side
   }
@@ -81,23 +82,23 @@ export default async function ProductDetailPage({
           <ProductDetailJsonLd product={productJson} />
           <BreadcrumbJsonLd
             items={[
-              { name: "Home", url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000" },
-              { name: "Shop", url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products` },
+              { name: "Home", url: SITE_URL },
+              { name: "Shop", url: `${SITE_URL}/products` },
               {
                 name: (productJson as any).category?.name || "Product",
                 url: (productJson as any).category
-                  ? `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products?category_id=${(productJson as any).category_id}`
-                  : `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products/${productJson.id}`,
+                  ? categoryUrl((productJson as any).category_id)
+                  : productUrl((productJson as any).slug),
               },
               {
                 name: (productJson as any).name as string,
-                url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products/${productJson.id}`,
+                url: productUrl((productJson as any).slug),
               },
             ]}
           />
         </>
       )}
-      <ProductDetail id={id} />
+      <ProductDetail slug={slug} />
     </SiteShell>
   )
 }

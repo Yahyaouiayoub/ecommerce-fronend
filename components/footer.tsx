@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { getPublicSettings } from "@/lib/api/services"
 import { getImageUrl } from "@/lib/api/client"
-import { useApi } from "@/lib/hooks/use-api"
+import { useSharedData } from "@/lib/hooks/use-api"
 import type { PublicSettings } from "@/lib/types"
 import { useTranslations } from "next-intl"
 
@@ -42,7 +42,7 @@ export function Footer() {
   const { user } = useAuth()
   const isAuthenticated = !!user
   const isAdmin = user?.role === "admin"
-  const { data: publicSettings } = useApi<PublicSettings>(() => getPublicSettings(), [])
+  const { data: publicSettings } = useSharedData<PublicSettings>("publicSettings", getPublicSettings)
   const logoUrl = publicSettings?.logo_url
   const t = useTranslations("footer")
 

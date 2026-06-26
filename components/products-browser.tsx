@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import {
   AlertCircle,
   PackageSearch,
@@ -12,7 +12,7 @@ import {
   ArrowUpDown,
 } from "lucide-react"
 import { getProducts, getCategories, getBrands, getProductPriceRange, type ProductQuery } from "@/lib/api/services"
-import { useApi } from "@/lib/hooks/use-api"
+import { useApi, useSharedData } from "@/lib/hooks/use-api"
 import { ProductCard } from "@/components/product-card"
 import { ProductGridSkeleton } from "@/components/skeletons"
 import { StateMessage } from "@/components/state-message"
@@ -47,16 +47,38 @@ export function ProductsBrowser() {
 
   const [priceRangeOpen, setPriceRangeOpen] = useState(hasPriceFilter)
 
-  // Load categories, brands, and price range for filters
-  const { data: categories } = useApi<Category[]>(() => getCategories(), [])
-  const { data: brands } = useApi<Brand[]>(() => getBrands(), [])
-  const { data: priceRange } = useApi<{ min_price: number; max_price: number }>(
-    () => getProductPriceRange(),
-    [],
-  )
+  // Load categories, brands, and price range for filters (shared singletons)
+  const { data: categories } = useSharedData<Category[]>("categories", getCategories)
+  const { data: brands } = useSharedData<Brand[]>("brands", getBrands)
+  const { data: priceRange } = useSharedData<{ min_price: number; max_price: number }>("priceRange", getProductPriceRange)
 
   const dbMin = priceRange?.min_price ?? 0
   const dbMax = priceRange?.max_price ?? 10000
+
+  // Debounced search input (local state, not URL — avoids navigation on every keystroke)
+  const [searchInput, setSearchInput] = useState(search)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync searchInput when URL search param changes externally
+  useEffect(() => {
+    setSearchInput(search)
+  }, [search])
+
+  function handleSearchInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    setSearchInput(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      updateParam({ search: value || null })
+    }, 400)
+  }
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
 
   // Local price range state — sync with URL params or defaults
   const [priceValue, setPriceValue] = useState<[number, number]>([
@@ -97,6 +119,7 @@ export function ProductsBrowser() {
   const { data, loading, error, reload } = useApi(
     () => getProducts(query),
     [search, categoryId, brandId, sort, page, newArrivals, bestSellers, minPriceParam, maxPriceParam],
+    { keepPreviousData: true },
   )
 
   const updateParam = useCallback(
@@ -111,12 +134,6 @@ export function ProductsBrowser() {
     },
     [params, router],
   )
-
-  function handleSearch(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const value = new FormData(e.currentTarget).get("search") as string
-    updateParam({ search: value })
-  }
 
   function handlePriceChange(value: [number, number]) {
     setPriceValue(value)
@@ -170,14 +187,14 @@ export function ProductsBrowser() {
       <div className="mb-8 space-y-4">
         {/* Search row */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <form onSubmit={handleSearch} className="w-full max-w-sm">
+          <div className="w-full max-w-sm">
             <Input
-              name="search"
-              defaultValue={search}
+              value={searchInput}
+              onChange={handleSearchInput}
               placeholder="Search products..."
               aria-label="Search products"
             />
-          </form>
+          </div>
 
           {/* Sort dropdown */}
           <div className="flex items-center gap-2">

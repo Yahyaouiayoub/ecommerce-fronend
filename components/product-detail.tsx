@@ -11,17 +11,19 @@ import {
   Star,
   MessageSquare,
 } from "lucide-react"
-import { getProduct, getProductReviews, createReview, getOrders, getProducts } from "@/lib/api/services"
+import { getProduct, getProductReviews, createReview, getOrders } from "@/lib/api/services"
+import { ProductVariantSelector } from "@/components/product-variant-selector"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import { StoreImage } from "@/components/store-image"
 import { useApi } from "@/lib/hooks/use-api"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { formatPrice } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 import { ProductDetailSkeleton } from "@/components/skeletons"
 import { StateMessage } from "@/components/state-message"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
-import type { ProductImage, Review, Order, Product } from "@/lib/types"
+import type { ProductImage, Review, Order, Product, ProductVariant } from "@/lib/types"
+import { categoryPath, productUrlSafe } from "@/lib/product-url"
 import { useAppDispatch } from "@/lib/store"
 import { addToCartAsync } from "@/lib/store/cart-slice"
 import { ProductCard } from "@/components/product-card"
@@ -57,16 +59,16 @@ function StarRating({ rating, interactive = false, onChange }: {
   )
 }
 
-export function ProductDetail({ id }: { id: string }) {
+export function ProductDetail({ slug }: { slug: string }) {
   const dispatch = useAppDispatch()
   const { user } = useAuth()
-  const productId = parseInt(id)
   const { data: product, loading, error, reload } = useApi(
-    () => getProduct(productId),
-    [productId],
+    () => getProduct(slug),
+    [slug],
   )
   const [quantity, setQuantity] = useState(1)
   const [activeImage, setActiveImage] = useState(0)
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null)
   // Reviews state
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewStats, setReviewStats] = useState({ average_rating: 0, total_reviews: 0, rating_distribution: {} as Record<number, number> })
@@ -80,9 +82,10 @@ export function ProductDetail({ id }: { id: string }) {
 
   // Load reviews
   useEffect(() => {
-    if (!productId) return
+    const pid = product?.id
+    if (!pid) return
     setReviewsLoading(true)
-    getProductReviews(productId)
+    getProductReviews(pid)
       .then((data) => {
         setReviews(data.reviews)
         setReviewStats({
@@ -93,20 +96,21 @@ export function ProductDetail({ id }: { id: string }) {
       })
       .catch(() => {})
       .finally(() => setReviewsLoading(false))
-  }, [productId])
+  }, [product?.id])
 
   // Load user's delivered orders for this product (to check review eligibility)
   useEffect(() => {
-    if (!user) return
+    const pid = product?.id
+    if (!user || !pid) return
     getOrders()
       .then((orders) => {
         const delivered = orders.filter(
-          (o) => o.status === "delivered" && o.items.some((item) => item.product_id === productId),
+          (o) => o.status === "delivered" && o.items.some((item) => item.product_id === pid),
         )
         setEligibleOrders(delivered)
       })
       .catch(() => {})
-  }, [user, productId])
+  }, [user, product?.id])
 
   if (loading) {
     return (
@@ -156,16 +160,23 @@ export function ProductDetail({ id }: { id: string }) {
   }
 
   const resolvedProduct = product
+  const hasVariants = !!(resolvedProduct.variants && resolvedProduct.variants.length > 0)
+
+  // Use variant values when a variant is selected, otherwise use parent product values
+  const displayPrice = selectedVariant?.effective_price ?? resolvedProduct.price
+  const displayStock = hasVariants ? (selectedVariant?.stock ?? 0) : resolvedProduct.stock
+  const displaySku = selectedVariant?.sku ?? resolvedProduct.sku
+  const soldOut = displayStock === 0
+
   const allImages = [
     resolvedProduct.thumbnail,
     ...(resolvedProduct.images?.map((img: ProductImage) => img.image_url) || [])
   ].filter((url): url is string => !!url && url.trim() !== "")
 
   const images = allImages.length > 0 ? allImages : ["/placeholder.svg"]
-  const soldOut = resolvedProduct.stock === 0
 
   function handleAdd() {
-    dispatch(addToCartAsync({ product: resolvedProduct, quantity }))
+    dispatch(addToCartAsync({ product: resolvedProduct, quantity, variantId: selectedVariant?.id }))
       .unwrap()
       .then(() => {
         toast.success(`${resolvedProduct.name} added to cart`)
@@ -173,6 +184,11 @@ export function ProductDetail({ id }: { id: string }) {
       .catch(() => {
         toast.error("Could not sync with server. Try again.")
       })
+  }
+
+  function handleVariantChange(variant: ProductVariant | null) {
+    setSelectedVariant(variant)
+    setQuantity(1)
   }
 
   async function handleSubmitReview(e: React.FormEvent) {
@@ -184,7 +200,7 @@ export function ProductDetail({ id }: { id: string }) {
     setSubmittingReview(true)
     try {
       const res = await createReview({
-        product_id: productId,
+        product_id: product?.id ?? 0,
         order_id: selectedOrderId,
         rating: reviewRating,
         comment: reviewComment || undefined,
@@ -195,7 +211,7 @@ export function ProductDetail({ id }: { id: string }) {
       setReviewRating(5)
       setSelectedOrderId(null)
       // Refresh stats
-      const stats = await getProductReviews(productId)
+      const stats = await getProductReviews(product?.id ?? 0)
       setReviewStats({
         average_rating: stats.average_rating,
         total_reviews: stats.total_reviews,
@@ -263,7 +279,7 @@ export function ProductDetail({ id }: { id: string }) {
         <div className="flex flex-col">
           {product.category?.name && (
             <Link
-              href={`/products?category_id=${product.category.id}`}
+              href={categoryPath(product.category.id)}
               className="text-sm font-medium uppercase tracking-wide text-accent hover:underline"
             >
               {product.category.name}
@@ -303,8 +319,13 @@ export function ProductDetail({ id }: { id: string }) {
 
           <div className="mt-5 flex items-center gap-3">
             <span className="text-2xl font-semibold text-foreground">
-              {formatPrice(product.price)}
+              {formatPrice(displayPrice)}
             </span>
+            {displayPrice !== product.price && (
+              <span className="text-sm text-muted-foreground line-through">
+                {formatPrice(product.price)}
+              </span>
+            )}
           </div>
 
           {product.description && (
@@ -313,13 +334,23 @@ export function ProductDetail({ id }: { id: string }) {
             </p>
           )}
 
+          {/* Variant Selector */}
+          {resolvedProduct && resolvedProduct.id && resolvedProduct.variants && (
+            <div className={cn(hasVariants ? "mt-6" : "hidden")}>
+              <ProductVariantSelector
+                variants={resolvedProduct.variants}
+                onVariantChange={handleVariantChange}
+              />
+            </div>
+          )}
+
           <div className="mt-4">
             {soldOut ? (
               <span className="text-sm font-medium text-destructive">Out of Stock</span>
-            ) : product.stock < 6 ? (
+            ) : displayStock < 6 ? (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
                 <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-                Only {product.stock} left in stock
+                Only {displayStock} left in stock
               </span>
             ) : (
               <span className="text-sm font-medium text-green-600 dark:text-green-400">
@@ -347,8 +378,8 @@ export function ProductDetail({ id }: { id: string }) {
                 <button
                   className="inline-flex h-8 w-8 items-center justify-center hover:bg-muted/50 transition-colors rounded-r-lg disabled:opacity-30"
                   aria-label="Increase quantity"
-                  disabled={quantity >= product.stock}
-                  onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                  disabled={quantity >= displayStock}
+                  onClick={() => setQuantity((q) => Math.min(displayStock, q + 1))}
                 >
                   <Plus className="size-4" />
                 </button>
@@ -362,10 +393,10 @@ export function ProductDetail({ id }: { id: string }) {
                   : "bg-primary text-primary-foreground hover:bg-primary/80"
               }`}
               onClick={handleAdd}
-              disabled={soldOut}
+              disabled={soldOut || (hasVariants && !selectedVariant)}
             >
               <ShoppingBag className="size-4" />
-              {soldOut ? "Sold out" : "Add to cart"}
+              {hasVariants && !selectedVariant ? "Select variant" : soldOut ? "Sold out" : "Add to cart"}
             </button>
           </div>
 
@@ -375,15 +406,15 @@ export function ProductDetail({ id }: { id: string }) {
               : "Ships within 1-2 business days."}
           </p>
 
-          {product.sku && (
+          {displaySku && (
             <p className="mt-2 text-xs text-muted-foreground">
-              SKU: {product.sku}
+              SKU: {displaySku}
             </p>
           )}
         </div>
       </div>
 
-      <RelatedProducts productId={product.id} categoryId={product.category_id} />
+      <RelatedProducts products={product.related_products ?? []} />
 
       {/* Reviews Section */}
       <div className="mt-16 border-t border-border pt-10">
@@ -557,7 +588,7 @@ export function ProductDetailJsonLd({ product }: { product: Record<string, unkno
       availability: (product.stock as number) > 0
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
-      url: `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/products/${product.id}`,
+      url: productUrlSafe((product as any).slug, product.id as number),
     },
     aggregateRating: (product as any).reviews_avg_rating
       ? {
@@ -576,31 +607,8 @@ export function ProductDetailJsonLd({ product }: { product: Record<string, unkno
   )
 }
 
-function RelatedProducts({
-  productId,
-  categoryId,
-}: {
-  productId: number
-  categoryId?: number
-}) {
-  const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!categoryId) {
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    getProducts({ category_id: categoryId, per_page: 5 })
-      .then((res) => {
-        setProducts(res.data.filter((p) => p.id !== productId).slice(0, 4))
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [productId, categoryId])
-
-  if (loading || products.length === 0) return null
+function RelatedProducts({ products }: { products: Product[] }) {
+  if (products.length === 0) return null
 
   return (
     <div className="mt-16 border-t border-border pt-10">

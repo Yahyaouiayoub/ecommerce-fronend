@@ -13,6 +13,8 @@ export interface CartItem {
   quantity: number
   /** Optional available stock for validation/display */
   stock?: number
+  /** Optional selected variant ID */
+  variantId?: number
 }
 
 interface CartState {
@@ -45,17 +47,22 @@ export const fetchCartFromServer = createAsyncThunk(
 /** POST /api/cart then update local state */
 export const addToCartAsync = createAsyncThunk(
   "cart/addToCartAsync",
-  async ({ product, quantity = 1 }: { product: Product; quantity?: number }) => {
-    const res = await cartService.addToCart(product.id, quantity)
+  async ({ product, quantity = 1, variantId }: { product: Product; quantity?: number; variantId?: number }) => {
+    const res = await cartService.addToCart(product.id, quantity, variantId)
+    // Get effective price from variant if selected
+    const effectivePrice = variantId && product.variants
+      ? (product.variants.find((v) => v.id === variantId)?.effective_price ?? product.price)
+      : product.price
     return {
       id: product.id,
       cartItemId: res.cart.id,
       name: product.name,
       slug: product.slug,
-      price: product.price,
+      price: effectivePrice,
       image: product.thumbnail ?? product.images?.[0]?.image_url,
       quantity: res.cart.quantity,
       stock: product.stock,
+      variantId,
     }
   },
 )
@@ -127,10 +134,10 @@ const cartSlice = createSlice({
     /** Local-only fallback (no API call) */
     addToCart: (
       state,
-      action: PayloadAction<{ product: Product; quantity?: number }>,
+      action: PayloadAction<{ product: Product; quantity?: number; variantId?: number }>,
     ) => {
-      const { product, quantity = 1 } = action.payload
-      const existing = state.items.find((i) => i.id === product.id)
+      const { product, quantity = 1, variantId } = action.payload
+      const existing = state.items.find((i) => i.id === product.id && i.variantId === variantId)
       if (existing) {
         existing.quantity += quantity
       } else {
@@ -141,6 +148,7 @@ const cartSlice = createSlice({
           price: product.price,
           image: product.thumbnail ?? product.images?.[0]?.image_url,
           quantity,
+          variantId,
         })
       }
     },
@@ -169,9 +177,9 @@ const cartSlice = createSlice({
       })
       // ── addToCartAsync ──────────────────────────────────────
       .addCase(addToCartAsync.fulfilled, (state, action) => {
-        const { id, cartItemId, name, slug, price, image, quantity, stock } =
+        const { id, cartItemId, name, slug, price, image, quantity, stock, variantId } =
           action.payload
-        const existing = state.items.find((i) => i.id === id)
+        const existing = state.items.find((i) => i.id === id && i.variantId === variantId)
         if (existing) {
           existing.quantity = quantity
           existing.cartItemId = cartItemId
@@ -186,6 +194,7 @@ const cartSlice = createSlice({
             image,
             quantity,
             stock,
+            variantId,
           })
         }
       })
