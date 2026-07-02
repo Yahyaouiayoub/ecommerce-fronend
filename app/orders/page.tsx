@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { Package, Download, Eye, FileText } from "lucide-react"
+import { Pagination } from "@/components/pagination"
 import { SiteShell } from "@/components/site-shell"
 import { StoreImage } from "@/components/store-image"
 import { useApi } from "@/lib/hooks/use-api"
@@ -15,8 +16,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+
 
 const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
   pending: "secondary",
@@ -29,7 +31,13 @@ const statusVariant: Record<string, "default" | "secondary" | "outline"> = {
 export default function OrdersPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const { data, error, loading } = useApi<Order[]>(() => getOrders(), [])
+  const [page, setPage] = useState(1)
+  const { data, error, loading } = useApi<{
+    data: Order[]
+    current_page: number
+    last_page: number
+    total: number
+  }>(() => getOrders({ page }), [page])
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -37,13 +45,19 @@ export default function OrdersPage() {
     }
   }, [authLoading, user, router])
 
+  const orders = data?.data ?? []
+
   return (
     <SiteShell>
       <div className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">My orders</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Track and review your past purchases.
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">My orders</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data ? `${data.total} order${data.total !== 1 ? "s" : ""} total` : "Track and review your past purchases."}
+            </p>
+          </div>
+        </div>
 
         <div className="mt-8 space-y-4">
           {loading && (
@@ -62,7 +76,7 @@ export default function OrdersPage() {
             />
           )}
 
-          {!loading && !error && data?.length === 0 && (
+          {!loading && !error && orders.length === 0 && (
             <StateMessage
               icon={<Package className="size-6" />}
               title="No orders yet"
@@ -77,7 +91,7 @@ export default function OrdersPage() {
 
           {!loading &&
             !error &&
-            data?.map((order) => (
+            orders.map((order) => (
               <div
                 key={order.id}
                 className="rounded-xl border border-border bg-card p-5"
@@ -186,6 +200,8 @@ export default function OrdersPage() {
               </div>
             ))}
         </div>
+
+        {data && <Pagination currentPage={page} lastPage={data.last_page} onPageChange={setPage} />}
       </div>
     </SiteShell>
   )

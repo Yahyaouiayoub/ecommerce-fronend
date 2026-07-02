@@ -68,9 +68,6 @@ export default function FAQPage() {
           ))}
         </div>
 
-        <p className="mt-12 text-center text-sm text-muted-foreground">
-          This page is ready for your custom content. Add more questions or customize the answers.
-        </p>
       </div>
     </SiteShell>
   )

@@ -14,6 +14,7 @@ export function FeaturedProducts() {
   const { data, loading, error, reload } = useApi(
     () => getFeaturedProducts(),
     [],
+    { staleTime: 5 * 60 * 1000 }, // 5 min — featured products change infrequently
   )
 
   return (

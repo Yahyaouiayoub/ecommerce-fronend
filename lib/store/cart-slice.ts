@@ -19,19 +19,41 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[]
+  /** Timestamp of the last successful fetch from the server (ms). Null = never fetched. */
+  lastFetchedAt: number | null
 }
 
-const initialState: CartState = { items: [] }
+const initialState: CartState = { items: [], lastFetchedAt: null }
 
 // ─── Async thunks ────────────────────────────────────────────────
+
+/**
+ * Minimum interval between automatic cart fetches (ms).
+ * The cart is fetched on mount via useAuth — this prevents redundant
+ * network requests when navigating between pages.
+ */
+export const CART_STALE_TIME = 60_000 // 60 seconds
+
+interface FetchCartPayload {
+  /** If true, bypass the staleness check and always fetch from the server. */
+  force?: boolean
+}
 
 /** Fetch the full cart from the server (for both guests and authenticated users) */
 export const fetchCartFromServer = createAsyncThunk(
   "cart/fetchCartFromServer",
-  async () => {
+  async (payload: FetchCartPayload | undefined, { getState }) => {
+    // Skip if the cart was fetched recently (unless force=true)
+    if (!payload?.force) {
+      const state = getState() as { cart: CartState }
+      if (state.cart.lastFetchedAt && Date.now() - state.cart.lastFetchedAt < CART_STALE_TIME) {
+        return undefined // Signal to the reducer that we're skipping
+      }
+    }
+
     const res = await cartService.getCart()
     // Return items matching our local CartItem shape
-    return res.cart.map((item) => ({
+    const items = res.cart.map((item) => ({
       id: item.product.id,
       cartItemId: item.id,
       name: item.product.name,
@@ -41,6 +63,7 @@ export const fetchCartFromServer = createAsyncThunk(
       quantity: item.quantity,
       stock: item.product.stock,
     }))
+    return { items, fetchedAt: Date.now() }
   },
 )
 
@@ -170,7 +193,10 @@ const cartSlice = createSlice({
     builder
       // ── fetchCartFromServer ────────────────────────────────
       .addCase(fetchCartFromServer.fulfilled, (state, action) => {
-        state.items = action.payload
+        // action.payload is undefined when we skipped (recently fetched)
+        if (!action.payload) return
+        state.items = action.payload.items
+        state.lastFetchedAt = action.payload.fetchedAt
       })
       .addCase(fetchCartFromServer.rejected, () => {
         // Silently fail — guest users may not have a session yet

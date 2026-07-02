@@ -10,8 +10,6 @@ import {
   X,
   Filter,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Eye,
   FileText,
@@ -20,6 +18,7 @@ import {
   AlertTriangle,
   RotateCcw,
 } from "lucide-react"
+import { Pagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -28,14 +27,14 @@ import { StateMessage } from "@/components/state-message"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
 import { usePolling } from "@/lib/hooks/use-polling"
-import { adminGetInvoiceStats } from "@/lib/api/services"
+import { adminGetInvoiceStats, adminGetInvoice, getPublicSettings } from "@/lib/api/services"
 import { formatPrice } from "@/lib/utils"
-import { getApiErrorMessage } from "@/lib/api/client"
+import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import { useAppDispatch, useAppSelector, selectInvoicesPagination } from "@/lib/store"
 import { fetchInvoices, updateInvoiceStatus, optimisticStatusUpdate, rollbackInvoice } from "@/lib/store/invoices-slice"
-import { openPdfInNewTab, downloadPdf } from "@/lib/pdf"
+import { downloadInvoicePdf } from "@/lib/generateInvoicePDF"
 import { AnimatedCounter } from "@/components/animated-counter"
-import type { Invoice, InvoiceStats } from "@/lib/types"
+import type { Invoice, InvoiceStats, PublicSettings } from "@/lib/types"
 import { toast } from "sonner"
 
 const STATUS_TRANSITIONS: Record<string, string[]> = {
@@ -117,12 +116,12 @@ function AdminInvoicesContent() {
   const [showFilters, setShowFilters] = useState(!!initialStatus)
 
   // Stats
-  const { data: stats, reload: reloadStats } = useApi<InvoiceStats | null>(
+  const { data: stats, reload: reloadStats, refresh: refreshStats } = useApi<InvoiceStats | null>(
     () => adminGetInvoiceStats(),
     [],
   )
 
-  usePolling(reloadStats, 30_000)
+  usePolling(refreshStats, 30_000)
 
   const queryParams = useMemo(() => {
     const params: Record<string, string | number> = {}
@@ -357,6 +356,9 @@ function AdminInvoicesContent() {
                     Customer
                   </th>
                   <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                    Order
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
                     Status
                   </th>
                   <th className="px-4 py-3 text-right text-[11px] font-medium uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
@@ -392,6 +394,11 @@ function AdminInvoicesContent() {
                     </td>
                     <td className="px-4 py-3.5 text-sm text-neutral-700 dark:text-neutral-300">
                       {invoice.billing_name ?? invoice.order?.customer?.full_name ?? "N/A"}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="inline-block px-2 py-0.5 text-xs font-medium border border-neutral-200 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                        {invoice.order?.status_label ?? "—"}
+                      </span>
                     </td>
                     <td className="px-4 py-3.5">
                       <span className={`inline-block px-2 py-0.5 text-xs font-medium border ${statusStyles[invoice.status] ?? ""}`}>
@@ -430,12 +437,27 @@ function AdminInvoicesContent() {
                           <Eye className="size-3.5" />
                         </Link>
                         <button
-                          onClick={() =>
-                            downloadPdf(
-                              `/admin/invoices/${invoice.id}/download`,
-                              `invoice-${invoice.invoice_number}.pdf`,
-                            )
-                          }
+                          onClick={async () => {
+                            try {
+                              const [detailRes, settings] = await Promise.all([
+                                adminGetInvoice(invoice.id),
+                                getPublicSettings(),
+                              ])
+                              const logoUrl = settings?.logo_url ? getImageUrl(settings.logo_url) : undefined
+                              const companySettings = settings ? {
+                                company_name: settings.company_name ?? 'Lumen Store',
+                                company_address: settings.company_address ?? '123 Commerce Street',
+                                company_city: settings.company_city ?? 'Casablanca',
+                                company_country: settings.company_country ?? 'Morocco',
+                                company_phone: settings.company_phone ?? '',
+                                company_email: settings.company_email ?? '',
+                              } : undefined
+                              await downloadInvoicePdf(detailRes.data, detailRes.meta, companySettings, logoUrl)
+                              toast.success("Invoice PDF downloaded")
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Failed to download PDF")
+                            }
+                          }}
                           className="inline-flex size-7 items-center justify-center rounded-sm text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 dark:hover:text-neutral-300 dark:hover:bg-neutral-800 transition-colors"
                           title="Download PDF"
                         >
@@ -478,20 +500,7 @@ function AdminInvoicesContent() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {pagination.lastPage > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-3">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                <ChevronLeft className="size-4" /> Previous
-              </Button>
-              <span className="text-sm text-neutral-500 dark:text-neutral-400">
-                Page {pagination.currentPage} of {pagination.lastPage}
-              </span>
-              <Button variant="outline" size="sm" disabled={page >= pagination.lastPage} onClick={() => setPage((p) => p + 1)}>
-                Next <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          )}
+          <Pagination simple currentPage={page} lastPage={pagination.lastPage} onPageChange={setPage} />
         </>
       )}
     </div>

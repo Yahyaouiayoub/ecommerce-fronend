@@ -5,13 +5,14 @@ import { useState, useEffect } from "react"
 import {
   AlertCircle,
   ChevronLeft,
+  Heart,
   Minus,
   Plus,
   ShoppingBag,
   Star,
   MessageSquare,
 } from "lucide-react"
-import { getProduct, getProductReviews, createReview, getOrders } from "@/lib/api/services"
+import { getProduct, getProductReviews, createReview, checkReviewEligibility } from "@/lib/api/services"
 import { ProductVariantSelector } from "@/components/product-variant-selector"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
 import { StoreImage } from "@/components/store-image"
@@ -24,8 +25,9 @@ import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
 import type { ProductImage, Review, Order, Product, ProductVariant } from "@/lib/types"
 import { categoryPath, productUrlSafe } from "@/lib/product-url"
-import { useAppDispatch } from "@/lib/store"
+import { useAppDispatch, useAppSelector, selectIsInWishlist } from "@/lib/store"
 import { addToCartAsync } from "@/lib/store/cart-slice"
+import { toggleWishlistAsync } from "@/lib/store/wishlist-slice"
 import { ProductCard } from "@/components/product-card"
 import { toast } from "sonner"
 
@@ -66,6 +68,7 @@ export function ProductDetail({ slug }: { slug: string }) {
     () => getProduct(slug),
     [slug],
   )
+  const isWishlisted = useAppSelector(selectIsInWishlist(product?.id ?? 0))
   const [quantity, setQuantity] = useState(1)
   const [activeImage, setActiveImage] = useState(0)
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null)
@@ -102,12 +105,9 @@ export function ProductDetail({ slug }: { slug: string }) {
   useEffect(() => {
     const pid = product?.id
     if (!user || !pid) return
-    getOrders()
-      .then((orders) => {
-        const delivered = orders.filter(
-          (o) => o.status === "delivered" && o.items.some((item) => item.product_id === pid),
-        )
-        setEligibleOrders(delivered)
+    checkReviewEligibility(pid)
+      .then((res) => {
+        setEligibleOrders(res.orders.map((o) => ({ id: o.id, order_number: o.order_number } as Order)))
       })
       .catch(() => {})
   }, [user, product?.id])
@@ -285,9 +285,34 @@ export function ProductDetail({ slug }: { slug: string }) {
               {product.category.name}
             </Link>
           )}
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
-            {product.name}
-          </h1>
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">
+              {product.name}
+            </h1>
+            {/* Wishlist heart toggle */}
+            {user && (
+              <button
+                onClick={() => {
+                  dispatch(toggleWishlistAsync({ product: resolvedProduct, isWishlisted }))
+                    .unwrap()
+                    .then((res) => {
+                      toast.success(res.action === "added" ? "Added to wishlist" : "Removed from wishlist")
+                    })
+                    .catch(() => {
+                      toast.error("Could not update wishlist")
+                    })
+                }}
+                className={`mt-3 flex size-10 shrink-0 items-center justify-center rounded-full border transition-all ${
+                  isWishlisted
+                    ? "border-red-200 bg-red-50 text-red-500 dark:border-red-800 dark:bg-red-950/30"
+                    : "border-border text-muted-foreground hover:text-red-500 hover:border-red-200"
+                }`}
+                aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+              >
+                <Heart className={`size-5 transition-all ${isWishlisted ? "fill-current scale-110" : ""}`} />
+              </button>
+            )}
+          </div>
 
           {product.brand?.name && (
             <div className="mt-1 text-sm text-muted-foreground">
@@ -532,12 +557,9 @@ export function ProductDetail({ slug }: { slug: string }) {
             </div>
           ) : (
             reviews.map((review) => (
-              <div key={review.id} className="border-b border-border pb-6 last:border-0">
-                <div className="flex items-start justify-between gap-4">
+              <div key={review.id} className="border-b border-border pb-6 last:border-0">                  <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-9 items-center justify-center rounded-full bg-accent/10 text-accent text-sm font-medium">
-                      {review.user?.first_name?.[0]}{review.user?.last_name?.[0]}
-                    </div>
+                    <ReviewUserAvatar user={review.user ?? null} />
                     <div>
                       <p className="text-sm font-medium">
                         {review.user?.first_name} {review.user?.last_name}
@@ -604,6 +626,28 @@ export function ProductDetailJsonLd({ product }: { product: Record<string, unkno
       type="application/ld+json"
       dangerouslySetInnerHTML={{ __html: script }}
     />
+  )
+}
+
+function ReviewUserAvatar({ user }: { user: { first_name: string; last_name: string; avatar?: string } | null }) {
+  const [imgError, setImgError] = useState(false)
+  const initials = user ? `${user.first_name[0]}${user.last_name[0]}` : "??"
+
+  if (user?.avatar && !imgError) {
+    return (
+      <img
+        src={getImageUrl(user.avatar)}
+        alt=""
+        className="size-9 shrink-0 rounded-full object-cover"
+        onError={() => setImgError(true)}
+      />
+    )
+  }
+
+  return (
+    <div className="flex size-9 items-center justify-center rounded-full bg-accent/10 text-accent text-sm font-medium shrink-0">
+      {initials}
+    </div>
   )
 }
 

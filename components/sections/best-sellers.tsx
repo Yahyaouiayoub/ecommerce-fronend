@@ -14,6 +14,7 @@ export function BestSellers() {
   const { data, loading, error, reload } = useApi(
     () => getBestSellers(),
     [],
+    { staleTime: 5 * 60 * 1000 }, // 5 min — best sellers change infrequently
   )
 
   return (

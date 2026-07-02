@@ -15,7 +15,11 @@ import {
   Star,
   Eye,
   EyeOff,
+  CheckCheck,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react"
+import { Pagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -34,10 +38,13 @@ import {
   adminDeleteProductImage,
   adminCreateProductMultipart,
   adminUpdateProductMultipart,
+  adminGetProductReferences,
+  adminBulkUpdateProductStatus,
 } from "@/lib/api/services"
 import { useAppDispatch, useAppSelector, selectProducts, selectProductsLoading, selectProductsError, selectProductsPagination, selectProductsUpdating } from "@/lib/store"
 import { fetchProducts, createProduct, updateProduct, deleteProduct, optimisticRemove } from "@/lib/store/products-slice"
-import type { Product, Category, Brand, PaginatedResponse, AdminProductPayload } from "@/lib/types"
+import type { Product, Category, Brand, PaginatedResponse, AdminProductPayload, ProductReferences } from "@/lib/types"
+import { DeleteProductModal } from "@/components/products/delete-product-modal"
 import { toast } from "sonner"
 
 export default function AdminProductsPage() {
@@ -85,6 +92,51 @@ export default function AdminProductsPage() {
   const [deleteImageIds, setDeleteImageIds] = useState<number[]>([])
   const [removeThumbnail, setRemoveThumbnail] = useState(false)
   const [showCostFields, setShowCostFields] = useState(false)
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (!items) return
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(items.map((p) => p.id)))
+    }
+  }
+
+  async function handleBulkStatus(isActive: boolean) {
+    if (selectedIds.size === 0) return
+    setIsBulkUpdating(true)
+    try {
+      const res = await adminBulkUpdateProductStatus(Array.from(selectedIds), isActive)
+      toast.success(res.message)
+      setSelectedIds(new Set())
+      dispatch(fetchProducts({ search, page, per_page: 15 }))
+    } catch (err) {
+      toast.error(getApiErrorMessage(err, "Failed to update products"))
+    } finally {
+      setIsBulkUpdating(false)
+    }
+  }
+
+  // Delete modal state
+  const [deleteProductId, setDeleteProductId] = useState<number | null>(null)
+  const [deleteProductName, setDeleteProductName] = useState("")
+  const [deleteProductRefs, setDeleteProductRefs] = useState<ProductReferences | null>(null)
+  const [checkingRefs, setCheckingRefs] = useState(false)
+  const [deletingInProgress, setDeletingInProgress] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const thumbnailInputRef = useRef<HTMLInputElement>(null)
 
@@ -101,6 +153,7 @@ export default function AdminProductsPage() {
       brand_id: 0,
       sku: "",
       featured: false,
+      is_active: true,
     }),
     [],
   )
@@ -148,6 +201,7 @@ export default function AdminProductsPage() {
       brand_id: product.brand_id ?? 0,
       sku: product.sku ?? "",
       featured: product.featured,
+      is_active: product.is_active,
     })
     if (product.thumbnail) {
       setThumbnailPreview(getImageUrl(product.thumbnail))
@@ -223,6 +277,7 @@ export default function AdminProductsPage() {
       if (form.brand_id) formData.append("brand_id", String(form.brand_id))
       if (form.sku) formData.append("sku", form.sku)
       formData.append("featured", form.featured ? "1" : "0")
+      formData.append("is_active", form.is_active ? "1" : "0")
 
       if (thumbnailFile) {
         formData.append("thumbnail", thumbnailFile)
@@ -256,15 +311,52 @@ export default function AdminProductsPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm("Delete this product? This cannot be undone.")) return
-    dispatch(optimisticRemove(id))
+  async function handleDelete(product: Product) {
+    setDeleteProductId(product.id)
+    setDeleteProductName(product.name)
+    setDeleteProductRefs(null)
+    setCheckingRefs(true)
+
     try {
-      await dispatch(deleteProduct(id)).unwrap()
+      const refs = await adminGetProductReferences(product.id)
+      setDeleteProductRefs(refs)
+    } catch {
+      // If the references check fails, allow deletion anyway
+      setDeleteProductRefs({
+        has_references: false,
+        references: { orders: 0, invoices: 0, reviews: 0, wishlists: 0, carts: 0, expenses: 0, coupons: 0 },
+      })
+    } finally {
+      setCheckingRefs(false)
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteProductId) return
+    setDeletingInProgress(true)
+    dispatch(optimisticRemove(deleteProductId))
+    try {
+      await dispatch(deleteProduct(deleteProductId)).unwrap()
       toast.success("Product deleted")
+      setDeleteProductId(null)
+      setDeleteProductName("")
+      setDeleteProductRefs(null)
     } catch (err) {
       dispatch(fetchProducts({ search, page, per_page: 15 }))
       toast.error(getApiErrorMessage(err, "Failed to delete product"))
+      setDeleteProductId(null)
+      setDeleteProductName("")
+      setDeleteProductRefs(null)
+    } finally {
+      setDeletingInProgress(false)
+    }
+  }
+
+  function handleCloseDeleteModal() {
+    if (!deletingInProgress) {
+      setDeleteProductId(null)
+      setDeleteProductName("")
+      setDeleteProductRefs(null)
     }
   }
 
@@ -673,6 +765,22 @@ export default function AdminProductsPage() {
                   Featured product
                 </label>
               </div>
+              <div>
+                <label className="text-sm font-medium">Status</label>
+                <Select
+                  value={form.is_active ? "1" : "0"}
+                  onChange={(e) => setForm({ ...form, is_active: e.target.value === "1" })}
+                  className="mt-1"
+                >
+                  <option value="1">Active</option>
+                  <option value="0">Inactive</option>
+                </Select>
+                {!form.is_active && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    Inactive products are hidden from customers and cannot be purchased.
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={saving}>
@@ -714,6 +822,47 @@ export default function AdminProductsPage() {
           </span>
         </div>
 
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <div className="mt-4 flex items-center gap-3 rounded-lg border border-accent/30 bg-accent/5 px-4 py-2.5">
+            <CheckCheck className="size-4 text-accent" />
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleBulkStatus(true)}
+                disabled={isBulkUpdating}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                <ToggleRight className="size-3.5 text-emerald-500" />
+                Activate
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkStatus(false)}
+                disabled={isBulkUpdating}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                <ToggleLeft className="size-3.5 text-muted-foreground" />
+                Deactivate
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                disabled={isBulkUpdating}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Clear
+              </button>
+              {isBulkUpdating && (
+                <div className="size-4 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         {loading ? (
           <div className="mt-4 space-y-3">
@@ -739,6 +888,15 @@ export default function AdminProductsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
+                  <th className="w-10 px-2 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={items.length > 0 && selectedIds.size === items.length}
+                      onChange={toggleSelectAll}
+                      className="accent-accent"
+                      aria-label="Select all products"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left font-medium">Product</th>
                   <th className="px-4 py-3 text-left font-medium">Category</th>
                   {showCostFields && <th className="px-4 py-3 text-right font-medium">Purchase</th>}
@@ -752,7 +910,16 @@ export default function AdminProductsPage() {
               </thead>
               <tbody>
                 {items.map((product) => (
-                  <tr key={product.id} className="border-b border-border hover:bg-muted/30">
+                  <tr key={product.id} className={`border-b border-border hover:bg-muted/30 transition-colors ${selectedIds.has(product.id) ? "bg-accent/5" : ""}`}>
+                    <td className="w-10 px-2 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(product.id)}
+                        onChange={() => toggleSelect(product.id)}
+                        className="accent-accent"
+                        aria-label={`Select ${product.name}`}
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {(product.thumbnail || product.images?.[0]) && (
@@ -813,7 +980,7 @@ export default function AdminProductsPage() {
                         <Button
                           variant="ghost"
                           size="xs"
-                          onClick={() => handleDelete(product.id)}
+                          onClick={() => handleDelete(product)}
                           className="text-destructive hover:text-destructive"
                           disabled={updatingIds.includes(product.id)}
                         >
@@ -828,29 +995,18 @@ export default function AdminProductsPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {pagination.lastPage > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {pagination.currentPage} of {pagination.lastPage}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pagination.lastPage}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </Button>
-          </div>
+        <Pagination simple currentPage={page} lastPage={pagination.lastPage} onPageChange={setPage} />
+
+        {/* Delete confirmation modal */}
+        {deleteProductId !== null && (
+          <DeleteProductModal
+            productName={deleteProductName}
+            references={deleteProductRefs}
+            loading={checkingRefs}
+            deleting={deletingInProgress}
+            onClose={handleCloseDeleteModal}
+            onConfirm={handleConfirmDelete}
+          />
         )}
       </div>
   )

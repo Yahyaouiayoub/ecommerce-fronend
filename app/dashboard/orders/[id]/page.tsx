@@ -19,6 +19,7 @@ import {
   User,
   Mail,
   ChevronRight,
+  RotateCcw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -515,6 +516,40 @@ export default function OrderDetailPage() {
                 ) : null}
               </div>
             </div>
+
+            {/* Refund Status card */}
+            {order.refund_status && (
+              <div className="rounded-xl border border-border bg-card">
+                <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+                  <RotateCcw className="size-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">Refund Status</h2>
+                </div>
+                <div className="p-5 space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Status</span>
+                    <Badge variant={order.refund_status === "fully_refunded" ? "default" : "secondary"}>
+                      {order.refund_status === "fully_refunded" ? "Fully Refunded" : "Partially Refunded"}
+                    </Badge>
+                  </div>
+                  {order.refund_amount != null && Number(order.refund_amount) > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Refunded Amount</span>
+                      <span className="font-semibold text-amber-600 dark:text-amber-400">
+                        -{formatPrice(Number(order.refund_amount))}
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2">
+                    <Link href={`/dashboard/refunds?search=${order.order_number}`}>
+                      <Button variant="outline" size="sm" className="w-full gap-1.5">
+                        <RotateCcw className="size-3.5" />
+                        View Refunds
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Payment Summary card */}
             <div className="rounded-xl border border-border bg-card">

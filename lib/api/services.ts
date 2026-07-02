@@ -4,6 +4,7 @@ import type {
   Brand,
   Category,
   Product,
+  ProductReferences,
   ProductVariant,
   AttributeGroup,
   CartItem,
@@ -32,10 +33,25 @@ import type {
   Review,
   ProductReviewsResponse,
   CreateReviewPayload,
+  FeaturedReview,
+  FeaturedReviewStats,
+  FeaturedReviewProduct,
+  ReviewModerationStats,
   AdminCart,
   PublicSettings,
   AdminSettingsResponse,
   ShippingMethod,
+  WishlistItem,
+  Coupon,
+  CouponStats,
+  CouponCheckResult,
+  Refund,
+  RefundableItemsResponse,
+  RefundDashboardStats,
+  Promotion,
+  PromotionStats,
+  ActivePromotionsResponse,
+  FeatureCard,
 } from "@/lib/types"
 
 // =========================
@@ -104,6 +120,45 @@ export interface ChangePasswordPayload {
 
 export async function changePassword(payload: ChangePasswordPayload) {
   const { data } = await api.put<{ message: string }>("/profile/password", payload)
+  return data
+}
+
+// =========================
+// PASSWORD RESET
+// =========================
+
+export interface ForgotPasswordPayload {
+  email: string
+}
+
+export async function forgotPassword(payload: ForgotPasswordPayload) {
+  const { data } = await api.post<{ message: string }>("/forgot-password", payload)
+  return data
+}
+
+export interface ResetPasswordPayload {
+  token: string
+  email: string
+  password: string
+  password_confirmation: string
+}
+
+export async function resetPassword(payload: ResetPasswordPayload) {
+  const { data } = await api.post<{ message: string }>("/reset-password", payload)
+  return data
+}
+
+// =========================
+// EMAIL VERIFICATION
+// =========================
+
+export async function resendVerificationEmail() {
+  const { data } = await api.post<{ message: string }>("/email/resend")
+  return data
+}
+
+export async function getVerificationStatus() {
+  const { data } = await api.get<{ verified: boolean; email_verified_at?: string }>("/email/status")
   return data
 }
 
@@ -392,8 +447,13 @@ export async function createOrder(payload: CheckoutPayload) {
   return data.order
 }
 
-export async function getOrders() {
-  const { data } = await api.get<Order[]>("/orders")
+export interface OrderQuery {
+  page?: number
+  per_page?: number
+}
+
+export async function getOrders(params?: OrderQuery) {
+  const { data } = await api.get<PaginatedResponse<Order>>("/orders", { params })
   return data
 }
 
@@ -447,6 +507,9 @@ export interface ProductProfit {
 export interface ProductProfitResponse {
   data: ProductProfit[]
   total_count: number
+  current_page: number
+  per_page: number
+  last_page: number
   summary: {
     total_revenue: number
     total_cost: number
@@ -454,8 +517,8 @@ export interface ProductProfitResponse {
   }
 }
 
-export async function adminGetProductProfits() {
-  const { data } = await api.get<ProductProfitResponse>("/admin/dashboard/product-profits")
+export async function adminGetProductProfits(params?: { page?: number; per_page?: number }) {
+  const { data } = await api.get<ProductProfitResponse>("/admin/dashboard/product-profits", { params })
   return data
 }
 
@@ -492,8 +555,23 @@ export async function adminUpdateProductMultipart(id: number, formData: FormData
   return data
 }
 
-export async function adminDeleteProduct(id: number) {
-  const { data } = await api.delete<{ message: string }>(`/admin/products/${id}`)
+export async function adminGetProductReferences(id: number) {
+  const { data } = await api.get<ProductReferences>(`/admin/products/${id}/references`)
+  return data
+}
+
+export async function adminDeleteProduct(id: number, force: boolean = false) {
+  const { data } = await api.delete<{ message: string }>(`/admin/products/${id}`, {
+    params: { force: force ? "1" : "0" },
+  })
+  return data
+}
+
+export async function adminBulkUpdateProductStatus(ids: number[], isActive: boolean) {
+  const { data } = await api.put<{ message: string; count: number }>("/admin/products/bulk-status", {
+    ids,
+    is_active: isActive,
+  })
   return data
 }
 
@@ -627,9 +705,16 @@ export async function adminSendInvoice(id: number) {
   return data
 }
 
-export async function getUserInvoices(params?: { order_id?: number; status?: string }) {
-  const { data } = await api.get<{ data: Invoice[] }>("/invoices", { params })
-  return data.data
+export interface UserInvoiceQuery {
+  order_id?: number
+  status?: string
+  page?: number
+  per_page?: number
+}
+
+export async function getUserInvoices(params?: UserInvoiceQuery) {
+  const { data } = await api.get<{ data: Invoice[]; current_page: number; last_page: number; per_page: number; total: number }>("/invoices", { params })
+  return data
 }
 
 export async function getUserInvoice(id: number) {
@@ -779,6 +864,14 @@ export async function createReview(payload: CreateReviewPayload) {
   return data
 }
 
+export async function checkReviewEligibility(productId: number) {
+  const { data } = await api.get<{
+    eligible: boolean
+    orders: { id: number; order_number: string }[]
+  }>("/orders/eligible-for-review/" + productId)
+  return data
+}
+
 // =========================
 // ADMIN: CARTS
 // =========================
@@ -878,8 +971,88 @@ export async function adminDeleteShippingMethod(id: number) {
 }
 
 // =========================
+// WISHLIST
+// =========================
+
+export async function getWishlist() {
+  const { data } = await api.get<{ wishlist: WishlistItem[]; total: number; current_page: number; last_page: number; per_page: number }>("/wishlist")
+  return data
+}
+
+export async function addToWishlist(productId: number) {
+  const { data } = await api.post<{ message: string; wishlist: WishlistItem }>(`/wishlist/${productId}`)
+  return data
+}
+
+export async function removeFromWishlist(productId: number) {
+  const { data } = await api.delete<{ message: string }>(`/wishlist/${productId}`)
+  return data
+}
+
+// =========================
 // SHIPPING METHODS (Public — active only)
 // =========================
+
+// =========================
+// COUPONS
+// =========================
+
+export interface CouponFormData {
+  code: string
+  type: "percentage" | "fixed"
+  value: number
+  is_active?: boolean
+  is_auto_apply?: boolean
+  starts_at?: string | null
+  expires_at?: string | null
+  min_order_amount?: number | null
+  max_discount_amount?: number | null
+  usage_limit?: number | null
+  per_customer_limit?: number
+  applies_to: "all" | "specific"
+  product_ids?: number[]
+  description?: string | null
+}
+
+export async function adminGetCoupons(params?: Record<string, string | number>) {
+  const { data } = await api.get<PaginatedResponse<Coupon>>("/admin/coupons", { params })
+  return data
+}
+
+export async function adminGetCoupon(id: number) {
+  const { data } = await api.get<{ coupon: Coupon; stats: Record<string, unknown> }>("/admin/coupons/" + id)
+  return data
+}
+
+export async function adminCreateCoupon(payload: CouponFormData) {
+  const { data } = await api.post<{ message: string; coupon: Coupon }>("/admin/coupons", payload)
+  return data
+}
+
+export async function adminUpdateCoupon(id: number, payload: Partial<CouponFormData>) {
+  const { data } = await api.put<{ message: string; coupon: Coupon }>("/admin/coupons/" + id, payload)
+  return data
+}
+
+export async function adminDeleteCoupon(id: number) {
+  const { data } = await api.delete<{ message: string }>("/admin/coupons/" + id)
+  return data
+}
+
+export async function adminToggleCouponActive(id: number) {
+  const { data } = await api.put<{ message: string; coupon: Coupon }>("/admin/coupons/" + id + "/toggle-active")
+  return data
+}
+
+export async function adminGetCouponStats() {
+  const { data } = await api.get<CouponStats>("/admin/coupons/stats")
+  return data
+}
+
+export async function checkCoupon(code: string, subtotal: number, guest_email?: string) {
+  const { data } = await api.post<CouponCheckResult>("/coupon/check", { code, subtotal, guest_email })
+  return data
+}
 
 export async function getPublicShippingMethods() {
   const { data } = await api.get<ShippingMethod[]>("/shipping-methods")
@@ -918,4 +1091,331 @@ export async function adminDeleteUser(id: number) {
 export async function adminGetUserSummary() {
   const { data } = await api.get<UserSummary>("/admin/users/summary")
   return data
+}
+
+// =========================
+// SOCIAL ACCOUNTS
+// =========================
+
+export async function getSocialAccounts() {
+  const { data } = await api.get<{ accounts: import("@/lib/types").SocialAccount[] }>("/social-accounts")
+  return data.accounts
+}
+
+export async function unlinkSocialAccount(id: number) {
+  const { data } = await api.delete<{ message: string }>(`/social-accounts/${id}`)
+  return data
+}
+
+// =========================
+// REFUNDS (Customer)
+// =========================
+
+export async function getMyRefunds() {
+  const { data } = await api.get<Refund[]>("/refunds")
+  return data
+}
+
+export async function getMyRefund(id: number) {
+  const { data } = await api.get<Refund>("/refunds/" + id)
+  return data
+}
+
+export async function createRefund(formData: FormData) {
+  const { data } = await api.post<{ message: string; refund: Refund }>("/refunds", formData)
+  return data
+}
+
+export async function getRefundableItems(orderId: number) {
+  const { data } = await api.get<RefundableItemsResponse>("/orders/" + orderId + "/refundable-items")
+  return data
+}
+
+// =========================
+// REFUNDS (Admin)
+// =========================
+
+export interface AdminRefundQuery {
+  status?: string
+  search?: string
+  date_from?: string
+  date_to?: string
+  page?: number
+  per_page?: number
+}
+
+export async function adminGetRefunds(params?: AdminRefundQuery) {
+  const { data } = await api.get<PaginatedResponse<Refund>>("/admin/refunds", { params })
+  return data
+}
+
+export async function adminGetRefund(id: number) {
+  const { data } = await api.get<Refund>("/admin/refunds/" + id)
+  return data
+}
+
+export async function adminApproveRefund(id: number) {
+  const { data } = await api.put<{ message: string; refund: Refund }>("/admin/refunds/" + id + "/approve")
+  return data
+}
+
+export async function adminRejectRefund(id: number, reason?: string) {
+  const { data } = await api.put<{ message: string; refund: Refund }>("/admin/refunds/" + id + "/reject", { reason })
+  return data
+}
+
+export async function adminCompleteRefund(id: number) {
+  const { data } = await api.put<{ message: string; refund: Refund }>("/admin/refunds/" + id + "/complete")
+  return data
+}
+
+export async function adminUpdateRefundNotes(id: number, notes: string) {
+  const { data } = await api.put<{ message: string; refund: Refund }>("/admin/refunds/" + id + "/notes", { notes })
+  return data
+}
+
+export async function adminGetRefundStats() {
+  const { data } = await api.get<RefundDashboardStats>("/admin/refunds/stats")
+  return data
+}
+
+// =========================
+// PROMOTIONS (Public)
+// =========================
+
+export async function getActivePromotions() {
+  const { data } = await api.get<ActivePromotionsResponse>("/promotions/all")
+  return data
+}
+
+export async function getHeroBanners() {
+  const { data } = await api.get<{ data: Promotion[] }>("/promotions/hero-banners")
+  return data.data
+}
+
+export async function getAnnouncementBars() {
+  const { data } = await api.get<{ data: Promotion[] }>("/promotions/announcement-bars")
+  return data.data
+}
+
+// =========================
+// PROMOTIONS (Admin)
+// =========================
+
+export interface AdminPromotionQuery {
+  position?: string
+  status?: string
+  search?: string
+  page?: number
+  per_page?: number
+}
+
+export async function adminGetPromotions(params?: AdminPromotionQuery) {
+  const { data } = await api.get<PaginatedResponse<Promotion>>("/admin/promotions", { params })
+  return data
+}
+
+export async function adminGetPromotion(id: number) {
+  const { data } = await api.get<{ data: Promotion }>("/admin/promotions/" + id)
+  return data.data
+}
+
+export async function adminCreatePromotion(formData: FormData) {
+  const { data } = await api.post<{ message: string; data: Promotion }>("/admin/promotions", formData)
+  return data
+}
+
+export async function adminUpdatePromotion(id: number, formData: FormData) {
+  // Laravel requires _method=POST for multipart POST updates
+  const { data } = await api.post<{ message: string; data: Promotion }>("/admin/promotions/" + id, formData)
+  return data
+}
+
+export async function adminDeletePromotion(id: number) {
+  const { data } = await api.delete<{ message: string }>("/admin/promotions/" + id)
+  return data
+}
+
+export async function adminTogglePromotionActive(id: number) {
+  const { data } = await api.put<{ message: string; data: Promotion }>("/admin/promotions/" + id + "/toggle-active")
+  return data
+}
+
+export async function adminGetPromotionStats() {
+  const { data } = await api.get<{ data: PromotionStats }>("/admin/promotions/stats")
+  return data.data
+}
+
+// =========================
+// HOMEPAGE FEATURES (Public)
+// =========================
+
+export async function getHomepageFeatures() {
+  const { data } = await api.get<{ data: FeatureCard[] }>("/homepage-features")
+  return data.data
+}
+
+// =========================
+// HOMEPAGE FEATURES (Admin)
+// =========================
+
+export async function adminGetHomepageFeatures() {
+  const { data } = await api.get<PaginatedResponse<FeatureCard>>("/admin/homepage-features")
+  return data
+}
+
+export async function adminGetHomepageFeature(id: number) {
+  const { data } = await api.get<{ data: FeatureCard }>("/admin/homepage-features/" + id)
+  return data.data
+}
+
+export async function adminCreateHomepageFeature(payload: Record<string, unknown>) {
+  const { data } = await api.post<{ message: string; data: FeatureCard }>("/admin/homepage-features", payload)
+  return data
+}
+
+export async function adminUpdateHomepageFeature(id: number, payload: Record<string, unknown>) {
+  const { data } = await api.put<{ message: string; data: FeatureCard }>("/admin/homepage-features/" + id, payload)
+  return data
+}
+
+export async function adminDeleteHomepageFeature(id: number) {
+  const { data } = await api.delete<{ message: string }>("/admin/homepage-features/" + id)
+  return data
+}
+
+export async function adminToggleHomepageFeatureActive(id: number) {
+  const { data } = await api.put<{ message: string; data: FeatureCard }>("/admin/homepage-features/" + id + "/toggle-active")
+  return data
+}
+
+export async function adminReorderHomepageFeatures(items: { id: number; sort_order: number }[]) {
+  const { data } = await api.post<{ message: string }>("/admin/homepage-features/reorder", { items })
+  return data
+}
+
+// =========================
+// FEATURED REVIEWS (Public)
+// =========================
+
+export async function getFeaturedReviews() {
+  const { data } = await api.get<{ data: FeaturedReview[] }>("/featured-reviews")
+  return data.data
+}
+
+// =========================
+// FEATURED REVIEWS (Admin)
+// =========================
+
+export interface AdminFeaturedReviewQuery {
+  featured?: string
+  rating?: number
+  product_id?: number
+  user_id?: number
+  search?: string
+  date_from?: string
+  date_to?: string
+  page?: number
+  per_page?: number
+}
+
+export async function adminGetFeaturedReviews(params?: AdminFeaturedReviewQuery) {
+  const { data } = await api.get<PaginatedResponse<Review>>("/admin/featured-reviews", { params })
+  return data
+}
+
+export async function adminGetFeaturedReview(id: number) {
+  const { data } = await api.get<{ data: Review }>("/admin/featured-reviews/" + id)
+  return data.data
+}
+
+export async function adminToggleReviewFeatured(id: number) {
+  const { data } = await api.put<{ message: string; data: Review }>("/admin/featured-reviews/" + id + "/toggle-featured")
+  return data
+}
+
+export async function adminToggleFeaturedActive(id: number) {
+  const { data } = await api.put<{ message: string; data: Review }>("/admin/featured-reviews/" + id + "/toggle-active")
+  return data
+}
+
+export async function adminUpdateFeaturedOrder(id: number, featured_order: number) {
+  const { data } = await api.put<{ message: string; data: Review }>("/admin/featured-reviews/" + id + "/order", { featured_order })
+  return data
+}
+
+export async function adminReorderFeaturedReviews(items: { id: number; featured_order: number }[]) {
+  const { data } = await api.post<{ message: string }>("/admin/featured-reviews/reorder", { items })
+  return data
+}
+
+export async function adminGetFeaturedReviewStats() {
+  const { data } = await api.get<{ data: FeaturedReviewStats }>("/admin/featured-reviews/stats")
+  return data.data
+}
+
+export async function adminGetFeaturedReviewProducts() {
+  const { data } = await api.get<{ data: FeaturedReviewProduct[] }>("/admin/featured-review-products")
+  return data.data
+}
+
+// =========================
+// REVIEW MODERATION (Admin)
+// =========================
+
+export interface AdminReviewQuery {
+  status?: string
+  rating?: number
+  product_id?: number
+  featured?: string
+  search?: string
+  date_from?: string
+  date_to?: string
+  page?: number
+  per_page?: number
+}
+
+export async function adminGetAllReviews(params?: AdminReviewQuery) {
+  const { data } = await api.get<PaginatedResponse<Review>>("/admin/reviews", { params })
+  return data
+}
+
+export async function adminGetReview(id: number) {
+  const { data } = await api.get<{ data: Review }>("/admin/reviews/" + id)
+  return data.data
+}
+
+export async function adminApproveReview(id: number) {
+  const { data } = await api.put<{ message: string; data: Review }>("/admin/reviews/" + id + "/approve")
+  return data
+}
+
+export async function adminRejectReview(id: number) {
+  const { data } = await api.put<{ message: string; data: Review }>("/admin/reviews/" + id + "/reject")
+  return data
+}
+
+export async function adminPendingReview(id: number) {
+  const { data } = await api.put<{ message: string; data: Review }>("/admin/reviews/" + id + "/pending")
+  return data
+}
+
+export async function adminBulkApproveReviews(ids: number[]) {
+  const { data } = await api.post<{ message: string; count: number }>("/admin/reviews/bulk-approve", { ids })
+  return data
+}
+
+export async function adminBulkRejectReviews(ids: number[]) {
+  const { data } = await api.post<{ message: string; count: number }>("/admin/reviews/bulk-reject", { ids })
+  return data
+}
+
+export async function adminGetReviewModerationStats() {
+  const { data } = await api.get<{ data: ReviewModerationStats }>("/admin/reviews/stats")
+  return data.data
+}
+
+export async function adminGetReviewProducts() {
+  const { data } = await api.get<{ data: { id: number; name: string; slug: string; reviews_count: number }[] }>("/admin/review-products")
+  return data.data
 }

@@ -81,22 +81,22 @@ export function ProductVariantSelector({ variants, onVariantChange }: ProductVar
 
   return (
     <div className="space-y-4">
-      {Object.entries(attributeGroups).map(([groupKey, group]: [string, any]) => (
+      {Object.entries(attributeGroups).map(([groupKey, group]: [string, AttributeGroup]) => (
         <div key={groupKey}>
           <label className="mb-1.5 block text-sm font-medium text-foreground">
             {group.label}
           </label>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(group.options).map(([optionValue, option]: [string, any]) => {
+            {Object.entries(group.options).map(([optionValue, option]: [string, { value: string; variant_id: number }]) => {
               const isSelected = selectedAttributes[groupKey] === optionValue
               const isAvailable = Object.values(variants).some(
-                (v: any) => {
+                (v: ProductVariant) => {
                   const vAttr = groupKey === "color" ? v.color : groupKey === "size" ? v.size : groupKey === "storage" ? v.storage : v.attributes?.[groupKey]
                   return vAttr === optionValue
                 },
               )
               const isOutOfStock = !Object.values(variants).some(
-                (v: any) => {
+                (v: ProductVariant) => {
                   const vAttr = groupKey === "color" ? v.color : groupKey === "size" ? v.size : groupKey === "storage" ? v.storage : v.attributes?.[groupKey]
                   return vAttr === optionValue && v.stock > 0
                 },

@@ -51,7 +51,8 @@ export const updateProduct = createAsyncThunk(
 export const deleteProduct = createAsyncThunk(
   "products/delete",
   async (id: number) => {
-    await services.adminDeleteProduct(id)
+    // force=true — references are checked on the frontend before calling this thunk
+    await services.adminDeleteProduct(id, true)
     return id
   },
 )

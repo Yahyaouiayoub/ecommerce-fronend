@@ -12,6 +12,7 @@ import {
   Sun,
   CreditCard,
   Package,
+  Heart,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -22,7 +23,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { useAppSelector, selectCartCount } from "@/lib/store"
+import { useAppSelector, selectCartCount, selectWishlistCount } from "@/lib/store"
 import { useTheme } from "next-themes"
 import { getPublicSettings } from "@/lib/api/services"
 import { getImageUrl } from "@/lib/api/client"
@@ -45,6 +46,7 @@ const NAV_LINKS = [
 export function Navbar() {
   const pathname = usePathname()
   const cartCount = useAppSelector(selectCartCount)
+  const wishlistCount = useAppSelector(selectWishlistCount)
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
@@ -128,6 +130,19 @@ export function Navbar() {
               >
                 <CreditCard className="size-4" />
                 Payment History
+              </Link>
+              <Link
+                href="/wishlist"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
+              >
+                <Heart className="size-4" />
+                Wishlist
+                {wishlistCount > 0 && (
+                  <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">
+                    {wishlistCount}
+                  </span>
+                )}
               </Link>
             </div>
           </SheetContent>
@@ -218,6 +233,17 @@ export function Navbar() {
                 <Link href="/payments" className="flex items-center gap-2 w-full">
                   <CreditCard className="size-4" />
                   Payment History
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <Link href="/wishlist" className="flex items-center gap-2 w-full">
+                  <Heart className="size-4" />
+                  Wishlist
+                  {wishlistCount > 0 && (
+                    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">
+                      {wishlistCount}
+                    </span>
+                  )}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>

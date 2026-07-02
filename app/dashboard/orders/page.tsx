@@ -10,9 +10,8 @@ import {
   X,
   ExternalLink,
   Filter,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react"
+import { Pagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -85,7 +84,7 @@ export default function AdminOrdersPage() {
     return params
   }, [statusFilter, search, dateFrom, dateTo, page])
 
-  const { data, loading, error, reload } = useApi<PaginatedResponse<Order>>(
+  const { data, loading, error, reload, refresh } = useApi<PaginatedResponse<Order>>(
     () => adminGetOrders(queryParams),
     [queryParams],
   )
@@ -94,8 +93,8 @@ export default function AdminOrdersPage() {
   const totalOrders = data?.total ?? 0
   const lastPage = data?.last_page ?? 1
 
-  // Auto-poll orders every 30 seconds
-  usePolling(reload, 30_000)
+  // Auto-poll orders every 30 seconds (silent — no loading spinner)
+  usePolling(refresh, 30_000)
 
   // Apply client-side payment status filter (over the current page only)
   const filteredOrders = useMemo(() => {
@@ -299,20 +298,7 @@ export default function AdminOrdersPage() {
               </div>
             )}
 
-            {/* Pagination */}
-            {lastPage > 1 && (
-              <div className="mt-8 flex items-center justify-center gap-3">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                  <ChevronLeft className="size-4" /> Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {page} of {lastPage}
-                </span>
-                <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>
-                  Next <ChevronRight className="size-4" />
-                </Button>
-              </div>
-            )}
+            <Pagination simple currentPage={page} lastPage={lastPage} onPageChange={setPage} />
           </>
         )}
       </div>

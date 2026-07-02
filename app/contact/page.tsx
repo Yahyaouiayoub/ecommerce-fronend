@@ -1,7 +1,15 @@
-"use client"
-
+import type { Metadata } from "next"
 import { SiteShell } from "@/components/site-shell"
 import { Mail, MapPin, Phone } from "lucide-react"
+
+export const metadata: Metadata = {
+  title: "Contact Us",
+  description: "Get in touch with the Lumen Store team. We'd love to hear from you about any questions, feedback, or support needs.",
+  openGraph: {
+    title: "Contact Us | Lumen Store",
+    description: "Get in touch with the Lumen Store team.",
+  },
+}
 
 export default function ContactPage() {
   return (
@@ -35,10 +43,6 @@ export default function ContactPage() {
             <p className="text-sm text-muted-foreground">123 Commerce Street, Casablanca, Morocco</p>
           </div>
         </div>
-
-        <p className="mt-12 text-center text-sm text-muted-foreground">
-          This page is ready for your custom content. Add a contact form, map, or any other elements.
-        </p>
       </div>
     </SiteShell>
   )

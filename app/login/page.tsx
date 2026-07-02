@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { getApiErrorMessage } from "@/lib/api/client"
 import { toast } from "sonner"
+import { SocialLoginButtons } from "@/components/social-login-buttons"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -152,7 +153,17 @@ export default function LoginPage() {
           <Button type="submit" size="lg" disabled={submitting} className="mt-2">
             {submitting ? "Signing in..." : "Sign in"}
           </Button>
+          <div className="flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-muted-foreground hover:text-accent transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
         </form>
+
+        <SocialLoginButtons />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}

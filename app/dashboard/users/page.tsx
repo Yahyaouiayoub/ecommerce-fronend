@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { AlertCircle, Search, Trash2, Users } from "lucide-react"
+import { Pagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -184,19 +185,7 @@ export default function AdminUsersPage() {
           </div>
         )}
 
-        {pagination.lastPage > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {pagination.currentPage} of {pagination.lastPage}
-            </span>
-            <Button variant="outline" disabled={page >= pagination.lastPage} onClick={() => setPage((p) => p + 1)}>
-              Next
-            </Button>
-          </div>
-        )}
+        <Pagination simple currentPage={page} lastPage={pagination.lastPage} onPageChange={setPage} />
       </div>
   )
 }

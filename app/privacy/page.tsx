@@ -1,7 +1,15 @@
-"use client"
-
+import type { Metadata } from "next"
 import { SiteShell } from "@/components/site-shell"
 import { Shield, Lock, Eye, Trash2 } from "lucide-react"
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "How Lumen Store collects, uses, and protects your personal information. Read our full privacy policy.",
+  openGraph: {
+    title: "Privacy Policy | Lumen Store",
+    description: "How we collect, use, and protect your personal information.",
+  },
+}
 
 export default function PrivacyPage() {
   return (
@@ -65,10 +73,6 @@ export default function PrivacyPage() {
             </div>
           </div>
         </div>
-
-        <p className="mt-12 text-center text-sm text-muted-foreground">
-          This page is ready for your custom content. Add your full privacy policy and legal terms.
-        </p>
       </div>
     </SiteShell>
   )

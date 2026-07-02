@@ -11,7 +11,11 @@ import { useTranslations } from "next-intl"
 
 export function CategoriesPreview() {
   const t = useTranslations("home")
-  const { data, loading, error, reload } = useApi(() => getCategories(), [])
+  const { data, loading, error, reload } = useApi(
+    () => getCategories(),
+    [],
+    { staleTime: 5 * 60 * 1000 }, // 5 min — categories don't change often
+  )
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">

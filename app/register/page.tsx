@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { getApiErrorMessage } from "@/lib/api/client"
 import { toast } from "sonner"
+import { SocialLoginButtons } from "@/components/social-login-buttons"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -105,6 +106,8 @@ export default function RegisterPage() {
             {submitting ? "Creating account..." : "Create account"}
           </Button>
         </form>
+
+        <SocialLoginButtons />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Already have an account?{" "}

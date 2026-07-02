@@ -70,17 +70,48 @@ export interface Review {
   order_id: number
   rating: number
   comment?: string
+  status: "pending" | "approved" | "rejected"
+  is_featured?: boolean
+  is_featured_active?: boolean
+  featured_order?: number
+  is_verified_purchase?: boolean
   created_at: string
+  updated_at?: string
   user?: {
     id: number
     first_name: string
     last_name: string
+    email?: string
     avatar?: string
+    full_name?: string
   }
+  product?: {
+    id: number
+    name: string
+    slug: string
+    thumbnail?: string
+  }
+}
+
+export interface ReviewModerationStats {
+  total_reviews: number
+  pending_reviews: number
+  approved_reviews: number
+  rejected_reviews: number
+  avg_rating: number
+}
+
+export interface FeaturedReview extends Review {
+  is_featured: true
+  is_featured_active: boolean
+  featured_order: number
 }
 
 export interface ProductReviewsResponse {
   reviews: Review[]
+  current_page: number
+  last_page: number
+  per_page: number
   average_rating: number
   total_reviews: number
   rating_distribution: Record<number, number>
@@ -91,6 +122,20 @@ export interface CreateReviewPayload {
   order_id: number
   rating: number
   comment?: string
+}
+
+export interface FeaturedReviewStats {
+  totalReviews: number
+  featuredReviews: number
+  activeFeatured: number
+  avgRatingFeatured: number
+}
+
+export interface FeaturedReviewProduct {
+  id: number
+  name: string
+  slug: string
+  reviews_count: number
 }
 
 export interface ProductVariant {
@@ -340,6 +385,8 @@ export interface Order {
   address_id?: number
   address?: Address
   notes?: string
+  refund_status?: string
+  refund_amount?: number
   created_at: string
   items: OrderItem[]
   payment?: Payment
@@ -407,6 +454,7 @@ export interface PublicSettings {
   company_country?: string
   company_phone?: string
   company_email?: string
+  coupons_enabled?: boolean
 }
 
 export interface PublicSettingsWithPayPal extends PublicSettings {
@@ -437,6 +485,80 @@ export interface OrdersMonthData extends MonthData {
   cancelled: number
   processing: number
   shipped: number
+}
+
+// =========================
+// COUPON
+// =========================
+export interface Coupon {
+  id: number
+  code: string
+  type: "percentage" | "fixed"
+  value: number
+  is_active: boolean
+  is_auto_apply?: boolean
+  starts_at: string | null
+  expires_at: string | null
+  min_order_amount: number | null
+  max_discount_amount: number | null
+  usage_limit: number | null
+  per_customer_limit: number
+  applies_to: "all" | "specific"
+  description: string | null
+  products?: Product[]
+  usages_count?: number
+  remaining_uses?: number
+  is_expired?: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CouponStats {
+  total_coupons: number
+  active_coupons: number
+  valid_now_coupons: number
+  total_discount_given: number
+  total_usage_count: number
+  most_used_coupons: {
+    id: number
+    code: string
+    type: string
+    value: number
+    usages_count: number
+    total_discount: number
+  }[]
+}
+
+export interface CouponCheckResult {
+  valid: boolean
+  message: string
+  discount?: number
+  is_auto_apply?: boolean
+  auto_apply_checked?: boolean
+  coupon?: {
+    code: string
+    type: string
+    value: number
+  }
+}
+
+// =========================
+// WISHLIST
+// =========================
+export interface WishlistItem {
+  id: number
+  user_id: number
+  product_id: number
+  product: Product
+  created_at: string
+}
+
+export interface MostWishlistedProduct {
+  id: number
+  name: string
+  slug: string
+  thumbnail?: string
+  wishlists_count: number
 }
 
 export interface DashboardStats {
@@ -484,8 +606,42 @@ export interface DashboardStats {
   cancelled_invoices: number
   total_pending_amount: number
 
+  // Refund stats
+  total_refunds: number
+  pending_refunds: number
+  approved_refunds: number
+  rejected_refunds: number
+  completed_refunds: number
+  total_refunded_amount: number
+  top_refunded_products: {
+    product_name: string
+    total_qty: number
+    total_amount: number
+  }[]
+
   // Refund alert
   refund_alert_count: number
+
+  // Coupon stats
+  total_coupons: number
+  active_coupons: number
+  total_coupon_discount: number
+  total_coupon_uses: number
+  most_used_coupon: {
+    coupon_id: number
+    usage_count: number
+    total_discount: number
+    coupon: {
+      id: number
+      code: string
+      type: string
+      value: number
+    } | null
+  } | null
+
+  // Wishlist stats
+  total_wishlist_items: number
+  most_wishlisted_products: MostWishlistedProduct[]
 
   // Recent orders
   recent_orders: {
@@ -496,6 +652,19 @@ export interface DashboardStats {
     status: string
     created_at: string
   }[]
+}
+
+export interface ProductReferences {
+  has_references: boolean
+  references: {
+    orders: number
+    invoices: number
+    reviews: number
+    wishlists: number
+    carts: number
+    expenses: number
+    coupons: number
+  }
 }
 
 export interface AdminProductPayload {
@@ -621,6 +790,203 @@ export interface AdminCart {
   total_value: number
   created_at: string
   updated_at: string
+}
+
+// =========================
+// REFUND
+// =========================
+export type RefundStatus = "pending" | "approved" | "rejected" | "completed"
+
+export interface RefundImage {
+  id: number
+  refund_id: number
+  image_path: string
+  created_at: string
+}
+
+export interface RefundItemData {
+  id: number
+  refund_id: number
+  order_item_id: number
+  quantity: number
+  amount: number
+  orderItem?: {
+    id: number
+    product_id: number
+    product?: Product
+    quantity: number
+    price: number
+  }
+}
+
+export interface Refund {
+  id: number
+  order_id: number
+  user_id: number | null
+  refund_number: string
+  status: RefundStatus
+  status_label: string
+  status_color: string
+  reason: string | null
+  description: string | null
+  refund_amount: number
+  refund_amount_formatted: string
+  internal_notes: string | null
+  guest_email: string | null
+  guest_name: string | null
+  requester_name: string
+  requester_email: string
+  approved_at: string | null
+  rejected_at: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  items?: RefundItemData[]
+  images?: RefundImage[]
+  order?: Order
+  user?: User
+}
+
+export interface RefundFormData {
+  order_id: number
+  reason: string
+  description?: string
+  items: { order_item_id: number; quantity: number }[]
+  images?: File[]
+}
+
+export interface RefundableItemsResponse {
+  items: {
+    id: number
+    product_id: number
+    product?: Product
+    quantity: number
+    price: number
+    refundable_quantity: number
+    max_refund_amount: number
+  }[]
+  max_refundable: number
+  order_total: number
+  already_refunded: number
+}
+
+export interface RefundDashboardStats {
+  total_refunds: number
+  pending_refunds: number
+  approved_refunds: number
+  rejected_refunds: number
+  completed_refunds: number
+  total_refunded_amount: number
+  top_refunded_products: {
+    product_name: string
+    total_qty: number
+    total_amount: number
+  }[]
+}
+
+// =========================
+// HOMEPAGE FEATURES
+// =========================
+
+export interface FeatureCard {
+  id: number
+  icon_key: string
+  title: string
+  description?: string
+  link_url?: string
+  sort_order: number
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface FeatureCardFormData {
+  icon_key: string
+  title: string
+  description?: string
+  link_url?: string
+  sort_order?: number
+  is_active?: boolean
+}
+
+// =========================
+// PROMOTIONS / BANNERS
+// =========================
+
+export type PromotionPosition = 'announcement_bar' | 'hero_banner' | 'both'
+
+export interface Promotion {
+  id: number
+  title: string
+  subtitle?: string
+  description?: string
+  cta_text?: string
+  cta_url?: string
+  background_image?: string | null
+  background_image_url?: string | null
+  mobile_image?: string | null
+  mobile_image_url?: string | null
+  background_color?: string
+  text_color?: string
+  discount_text?: string
+  badge?: string
+  starts_at?: string | null
+  ends_at?: string | null
+  is_active: boolean
+  status_label: string
+  priority: number
+  position: PromotionPosition
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PromotionFormData {
+  title: string
+  subtitle?: string
+  description?: string
+  cta_text?: string
+  cta_url?: string
+  background_color?: string
+  text_color?: string
+  discount_text?: string
+  badge?: string
+  starts_at?: string | null
+  ends_at?: string | null
+  is_active?: boolean
+  priority?: number
+  position: PromotionPosition
+  background_image_file?: File | null
+  mobile_image_file?: File | null
+}
+
+export interface PromotionStats {
+  total: number
+  active: number
+  scheduled: number
+  expired: number
+  disabled: number
+  by_position: {
+    hero_banner: number
+    announcement_bar: number
+    both: number
+  }
+}
+
+export interface ActivePromotionsResponse {
+  hero_banners: Promotion[]
+  announcement_bars: Promotion[]
+}
+
+// =========================
+// SOCIAL ACCOUNTS
+// =========================
+
+export interface SocialAccount {
+  id: number
+  provider: string
+  provider_label: string
+  provider_id: string
+  linked_at: string
 }
 
 // =========================

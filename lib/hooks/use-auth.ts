@@ -5,6 +5,7 @@ import type { User } from "@/lib/types"
 import { getToken, setToken, removeToken } from "@/lib/api/client"
 import { useAppDispatch } from "@/lib/store"
 import { fetchCartFromServer, clearCart } from "@/lib/store/cart-slice"
+import { fetchWishlist } from "@/lib/store/wishlist-slice"
 import { getMe,
   login as loginRequest,
   logout as logoutRequest,
@@ -49,7 +50,7 @@ export function useAuth() {
     const token = getToken()
     if (!token) {
       setLoading(false)
-      // Fetch guest cart by session_id
+      // Fetch guest cart (thunk skips if recently fetched, e.g. within 60s)
       dispatch(fetchCartFromServer())
       return
     }
@@ -58,8 +59,9 @@ export function useAuth() {
       .then((userData) => {
         if (!cancelled) {
           setUser(userData)
-          // Fetch this user's cart from server
+          // Fetch user cart (thunk skips if recently fetched)
           dispatch(fetchCartFromServer())
+          dispatch(fetchWishlist())
         }
       })
       .catch(() => {
@@ -93,7 +95,10 @@ export function useAuth() {
     setUser(res.user)
 
     // Fetch user's cart from server (backend mergeGuestCart already merged guest cart)
-    await dispatch(fetchCartFromServer()).unwrap()
+    // Force fetch — user just logged in, cart data may have changed
+    await dispatch(fetchCartFromServer({ force: true })).unwrap()
+    // Fetch wishlist for logged-in user
+    dispatch(fetchWishlist())
 
     return { user: res.user }
   }, [dispatch])
@@ -103,8 +108,10 @@ export function useAuth() {
     setToken(res.token)
     setUser(res.user)
 
-    // Fetch user's cart from server
-    await dispatch(fetchCartFromServer()).unwrap()
+    // Fetch user's cart from server (force — 2FA challenge may have changed cart)
+    await dispatch(fetchCartFromServer({ force: true })).unwrap()
+    // Fetch wishlist for logged-in user
+    dispatch(fetchWishlist())
 
     return res.user
   }, [dispatch])
@@ -114,8 +121,10 @@ export function useAuth() {
     setToken(res.token)
     setUser(res.user)
 
-    // Fetch user's cart from server (backend mergeGuestCart already merged guest cart)
-    await dispatch(fetchCartFromServer()).unwrap()
+    // Fetch user's cart from server (force — registration merged guest cart)
+    await dispatch(fetchCartFromServer({ force: true })).unwrap()
+    // Fetch wishlist for logged-in user
+    dispatch(fetchWishlist())
 
     return res.user
   }, [dispatch])
@@ -130,6 +139,7 @@ export function useAuth() {
     setUser(null)
     // Clear all cart data — prevents data leaking to the next user
     dispatch(clearCart())
+    dispatch({ type: "wishlist/clearWishlist" })
     localStorage.removeItem(CART_STORAGE_KEY)
     localStorage.removeItem(SESSION_KEY)
   }, [dispatch])

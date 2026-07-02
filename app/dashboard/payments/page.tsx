@@ -9,9 +9,8 @@ import {
   X,
   Filter,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-react"
+import { Pagination } from "@/components/pagination"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -242,20 +241,7 @@ export default function AdminPaymentsPage() {
             </table>
           </div>
 
-          {/* Pagination */}
-          {data.last_page > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-3">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                <ChevronLeft className="size-4" /> Previous
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                Page {data.current_page} of {data.last_page}
-              </span>
-              <Button variant="outline" size="sm" disabled={page >= data.last_page} onClick={() => setPage((p) => p + 1)}>
-                Next <ChevronRight className="size-4" />
-              </Button>
-            </div>
-          )}
+          {data && <Pagination simple currentPage={page} lastPage={data.last_page} onPageChange={setPage} />}
         </>
       )}
     </div>

@@ -17,6 +17,9 @@ import {
   RefreshCw,
   ChevronRight,
   RotateCcw,
+  Heart,
+  Tag,
+  Percent,
 } from "lucide-react"
 import { useAuth } from "@/lib/hooks/use-auth"
 import {
@@ -78,6 +81,8 @@ export default function DashboardPage() {
   // Polls in the background using React Query's cache invalidation
   // so the user never sees a loading spinner. Pauses when the tab
   // is hidden to save bandwidth, resumes on return.
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
+
   useEffect(() => {
     function startPolling() {
       // Fire once immediately on visibility change
@@ -99,8 +104,6 @@ export default function DashboardPage() {
         startPolling()
       }
     }
-
-    const intervalRef: { current: ReturnType<typeof setInterval> | undefined } = { current: undefined }
 
     // Start polling if tab is visible
     if (!document.hidden) {
@@ -274,6 +277,112 @@ export default function DashboardPage() {
             />
           </div>
 
+          {/* Coupon Stats */}
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Tag className="size-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold tracking-tight">Coupon Overview</h2>
+              <Link href="/dashboard/coupons" className="ml-auto text-sm font-medium text-accent hover:underline">
+                Manage Coupons
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                label="Total Coupons"
+                icon={<Tag className="size-3.5" />}
+                iconClass="bg-indigo-500/10 text-indigo-500"
+                value={<AnimatedCounter value={stats.total_coupons} />}
+                note={`${stats.active_coupons} active`}
+              />
+              <StatCard
+                label="Times Used"
+                icon={<Percent className="size-3.5" />}
+                iconClass="bg-blue-500/10 text-blue-500"
+                value={<AnimatedCounter value={stats.total_coupon_uses} />}
+                note="Total coupon redemptions"
+              />
+              <StatCard
+                label="Discount Given"
+                icon={<DollarSign className="size-3.5" />}
+                iconClass="bg-green-500/10 text-green-500"
+                value={<AnimatedCounter value={stats.total_coupon_discount} formatCurrency />}
+                note="Total savings"
+              />
+              {stats.most_used_coupon && stats.most_used_coupon.coupon ? (
+                <StatCard
+                  label="Top Coupon"
+                  icon={<Percent className="size-3.5" />}
+                  iconClass="bg-amber-500/10 text-amber-500"
+                  value={<span className="font-mono text-lg">{stats.most_used_coupon.coupon.code}</span>}
+                  note={`${stats.most_used_coupon.usage_count} uses · ${formatPrice(stats.most_used_coupon.total_discount)} given`}
+                />
+              ) : (
+                <div className="rounded-xl border border-border bg-card p-5 flex items-center justify-center text-sm text-muted-foreground">
+                  No usage data yet
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Wishlist Stats */}
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Heart className="size-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold tracking-tight">Wishlist Overview</h2>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <StatCard
+                label="Total Saved Items"
+                icon={<Heart className="size-3.5" />}
+                iconClass="bg-rose-500/10 text-rose-500"
+                value={<AnimatedCounter value={stats.total_wishlist_items} />}
+                note="Products across all wishlists"
+              />
+              {stats.most_wishlisted_products.slice(0, 2).map((product, i) => (
+                <StatCard
+                  key={product.id}
+                  label={i === 0 ? "Most Wishlisted" : "Runner Up"}
+                  icon={<Heart className="size-3.5" />}
+                  iconClass="bg-rose-500/10 text-rose-500"
+                  value={
+                    <span className="truncate block text-lg">{product.name}</span>
+                  }
+                  note={`${product.wishlists_count} wishlist${product.wishlists_count !== 1 ? "s" : ""}`}
+                />
+              ))}
+            </div>
+            {/* Most wishlisted products table */}
+            {stats.most_wishlisted_products.length > 0 && (
+              <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="px-4 py-3 text-left font-medium">Product</th>
+                      <th className="px-4 py-3 text-right font-medium">Wishlists</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.most_wishlisted_products.map((product) => (
+                      <tr key={product.id} className="border-b border-border hover:bg-muted/30">
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/products/${product.slug}`}
+                            className="text-sm font-medium text-foreground hover:text-accent transition-colors"
+                          >
+                            {product.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Badge variant="secondary">{product.wishlists_count}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Charts Row */}
           <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <RevenueChart data={stats.revenue_by_month} />
@@ -441,6 +550,39 @@ export default function DashboardPage() {
                   <RevenueVsExpensesChart data={financial.revenue_vs_expenses} />
                   <MonthlyProfitChart data={financial.monthly_profit} />
                   <CollectionRateChart data={financial.collection_rate} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Refund Overview */}
+          {stats.total_refunds > 0 && (
+            <>
+              <Separator className="my-8" />
+              <div>
+                <div className="flex items-center justify-between gap-4 mb-5">
+                  <div className="flex items-center gap-2">
+                    <RotateCcw className="size-5 text-muted-foreground" />
+                    <h2 className="text-xl font-semibold tracking-tight">Refund Overview</h2>
+                  </div>
+                  <Link
+                    href="/dashboard/refunds"
+                    className="text-sm font-medium text-accent hover:underline"
+                  >
+                    View all refunds <ChevronRight className="size-3 inline" />
+                  </Link>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+                  <InvoiceStatCard label="Total" value={<AnimatedCounter value={stats.total_refunds} />} />
+                  <InvoiceStatCard label="Pending" value={<AnimatedCounter value={stats.pending_refunds} />} />
+                  <InvoiceStatCard label="Approved" value={<AnimatedCounter value={stats.approved_refunds} />} />
+                  <InvoiceStatCard label="Completed" value={<AnimatedCounter value={stats.completed_refunds} />} />
+                  <InvoiceStatCard label="Rejected" value={<AnimatedCounter value={stats.rejected_refunds} />} />
+                  <InvoiceStatCard
+                    label="Refunded Amount"
+                    value={<AnimatedCounter value={stats.total_refunded_amount} formatCurrency />}
+                  />
                 </div>
               </div>
             </>

@@ -8,7 +8,15 @@ import { useSharedData } from "@/lib/hooks/use-api"
 import type { PublicSettings } from "@/lib/types"
 import { useTranslations } from "next-intl"
 
-const FOOTER_SECTIONS = [
+interface FooterLink {
+  labelKey: string
+  href: string
+  requireAuth?: boolean
+  requireGuest?: boolean
+  requireClient?: boolean
+}
+
+const FOOTER_SECTIONS: Array<{ titleKey: string; links: FooterLink[] }> = [
   {
     titleKey: "shop",
     links: [
@@ -75,7 +83,7 @@ export function Footer() {
               <ul className="mt-4 flex flex-col gap-2">
                 {section.links
                   .filter((link) => {
-                    const l = link as any
+                    const l = link as FooterLink
                     if (l.requireAuth && !isAuthenticated) return false
                     if (l.requireGuest && isAuthenticated) return false
                     if (isAdmin && l.requireClient) return false

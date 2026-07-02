@@ -15,12 +15,14 @@ interface UseApiResult<T> {
 interface UseApiOptions {
   /** Keep showing the previous data while new data is loading (prevents UI flicker). */
   keepPreviousData?: boolean
+  /** How long (ms) cached data is considered fresh. Default 60s. */
+  staleTime?: number
 }
 
 // ── In-flight request deduplication cache ────────────────────────
 const inflightCache = new Map<string, Promise<unknown>>()
 const dataCache = new Map<string, { data: unknown; ts: number }>()
-const CACHE_TTL = 60_000 // 60 seconds (doubled from 30s)
+const DEFAULT_CACHE_TTL = 60_000 // 60 seconds
 
 // Incrementing counter used as fallback when toString() yields a generic body
 let fnCounter = 0
@@ -51,7 +53,8 @@ function getCacheKey(fn: () => unknown, deps: unknown[]): string {
 /**
  * Enhanced data-fetching hook with:
  * - In-flight request deduplication (same fetcher call shares one promise)
- * - Short-lived result cache (60s TTL; cleared on reload)
+ * - Configurable staleTime (default 60s) — set a longer TTL for data that
+ *   changes infrequently (e.g. homepage sections)
  * - keepPreviousData (stale data stays visible during background refetch)
  * - Standard loading / error / reload pattern
  *
@@ -68,6 +71,7 @@ export function useApi<T>(
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
   const prevDataRef = useRef<T | null>(null)
+  const staleTime = options?.staleTime ?? DEFAULT_CACHE_TTL
   const cacheKey = getCacheKey(fetcher, deps)
 
   const run = useCallback((silent?: boolean) => {
@@ -82,7 +86,7 @@ export function useApi<T>(
     // Check short-lived data cache first (only for non-silent loads)
     if (!silent) {
       const cached = dataCache.get(cacheKey)
-      if (cached && Date.now() - cached.ts < CACHE_TTL) {
+      if (cached && Date.now() - cached.ts < staleTime) {
         setData(cached.data as T)
         setLoading(false)
         return () => { mounted = false }
@@ -155,7 +159,7 @@ export function useApi<T>(
 // simultaneously (e.g. navbar + footer + homepage all need getPublicSettings),
 // only ONE network request is ever made. The promise is shared.
 
-const singletonCache = new Map<string, { promise: Promise<unknown>; data: unknown | null }>()
+const singletonCache = new Map<string, { promise: Promise<unknown>; data: unknown | null; ts: number }>()
 
 /**
  * useSharedData — Fetches data once and shares the result across all callers.
@@ -175,17 +179,19 @@ export function useSharedData<T>(
     let mounted = true
     const cached = singletonCache.get(key)
 
-    if (cached && cached.data !== null) {
+    // Return cached data only if it's still fresh (within staleTime)
+    if (cached && cached.data !== null && Date.now() - cached.ts < staleTime) {
       setData(cached.data as T)
       setLoading(false)
       return
     }
 
+    // If there's a pending promise (from a concurrent caller), subscribe to it
     if (cached?.promise) {
       cached.promise
         .then((result) => {
           if (mounted) {
-            singletonCache.set(key, { promise: cached.promise, data: result })
+            singletonCache.set(key, { promise: cached.promise, data: result, ts: Date.now() })
             setData(result as T)
             setLoading(false)
           }
@@ -197,15 +203,15 @@ export function useSharedData<T>(
     }
 
     const promise = fetcher()
-    singletonCache.set(key, { promise, data: null })
+    singletonCache.set(key, { promise, data: null, ts: Date.now() })
 
     promise
       .then((result) => {
         if (mounted) {
-          singletonCache.set(key, { promise, data: result })
+          singletonCache.set(key, { promise, data: result, ts: Date.now() })
           setData(result as T)
           setLoading(false)
-          // Schedule cache refresh
+          // Schedule cache eviction after staleTime
           setTimeout(() => singletonCache.delete(key), staleTime)
         }
       })

@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { ShoppingBag, Star } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { ShoppingBag, Star, Heart } from "lucide-react"
 import type { Product, ProductVariant, AttributeGroup } from "@/lib/types"
 import { getImageUrl } from "@/lib/api/client"
 import { StoreImage } from "@/components/store-image"
@@ -10,6 +11,9 @@ import { cn, formatPrice, computeAttributeGroups } from "@/lib/utils"
 import { productPath } from "@/lib/product-url"
 import { useAppDispatch } from "@/lib/store"
 import { addToCartAsync } from "@/lib/store/cart-slice"
+import { toggleWishlistAsync, fetchWishlist } from "@/lib/store/wishlist-slice"
+import { useAppSelector, selectIsInWishlist, selectWishlistCount } from "@/lib/store"
+import { useAuth } from "@/lib/hooks/use-auth"
 import { toast } from "sonner"
 
 interface ProductCardProps {
@@ -19,6 +23,9 @@ interface ProductCardProps {
 
 export const ProductCard = memo(function ProductCard({ product, className }: ProductCardProps) {
   const dispatch = useAppDispatch()
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
+  const isWishlisted = useAppSelector(selectIsInWishlist(product.id))
   
   const image = getImageUrl(
     product.thumbnail || product.images?.[0]?.image_url,
@@ -99,8 +106,44 @@ export const ProductCard = memo(function ProductCard({ product, className }: Pro
           sizes="(max-width: 768px) 50vw, 25vw"
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
+        {/* Wishlist heart — shown for all users; guests are prompted to log in */}
+        <button
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            // Auth still loading — silently do nothing until state resolves
+            if (authLoading) return
+            // Not authenticated — prompt to log in
+            if (!user) {
+              toast.success("Log in to save items to your wishlist")
+              router.push("/login?redirect=" + encodeURIComponent(productPath(product.slug)))
+              return
+            }
+            dispatch(toggleWishlistAsync({ product, isWishlisted }))
+              .unwrap()
+              .then((res) => {
+                toast.success(res.action === "added" ? "Added to wishlist" : "Removed from wishlist")
+              })
+              .catch(() => {
+                toast.error("Could not update wishlist")
+              })
+          }}
+          className={`absolute left-3 top-3 z-10 flex size-8 items-center justify-center rounded-full transition-all ${
+            user && isWishlisted
+              ? "bg-red-500/90 text-white hover:bg-red-600"
+              : "bg-background/80 text-muted-foreground hover:bg-background hover:text-red-500"
+          }`}
+          aria-label={user && isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+        >
+          <Heart
+            className={`size-4 transition-all ${
+              user && isWishlisted ? "fill-current scale-110" : ""
+            }`}
+          />
+        </button>
+
         {onSale && (
-          <span className="absolute left-3 top-3 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
+          <span className="absolute right-3 top-3 rounded-full bg-accent px-2.5 py-1 text-xs font-semibold text-accent-foreground">
             Sale
           </span>
         )}

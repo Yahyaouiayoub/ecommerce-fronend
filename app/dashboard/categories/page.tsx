@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
 import {
@@ -18,7 +19,7 @@ import {
   adminDeleteCategory,
 } from "@/lib/api/services"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
-import type { Category, AdminCategoryPayload } from "@/lib/types"
+import type { Category } from "@/lib/types"
 import { toast } from "sonner"
 
 export default function AdminCategoriesPage() {
@@ -28,6 +29,8 @@ export default function AdminCategoriesPage() {
   
   const [localCategories, setLocalCategories] = useState<Category[] | null>(null)
   const [deletingIds, setDeletingIds] = useState<number[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
+  const [deletingInProgress, setDeletingInProgress] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editCat, setEditCat] = useState<Category | null>(null)
   const [saving, setSaving] = useState(false)
@@ -126,8 +129,14 @@ export default function AdminCategoriesPage() {
     }
   }
 
-  async function handleDelete(id: number, name: string) {
-    if (!confirm(`Delete "${name}"? Products in this category will also be deleted.`)) return
+  function handleDelete(id: number, name: string) {
+    setDeleteTarget({ id, name })
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
+    const { id } = deleteTarget
+    setDeletingInProgress(true)
     setDeletingIds((prev) => [...prev, id])
     setLocalCategories((prev) => prev?.filter((c) => c.id !== id) ?? null)
     try {
@@ -139,6 +148,14 @@ export default function AdminCategoriesPage() {
       toast.error(getApiErrorMessage(err, "Failed to delete category"))
     } finally {
       setDeletingIds((prev) => prev.filter((did) => did !== id))
+      setDeletingInProgress(false)
+      setDeleteTarget(null)
+    }
+  }
+
+  function handleCloseDeleteModal() {
+    if (!deletingInProgress) {
+      setDeleteTarget(null)
     }
   }
 
@@ -304,6 +321,19 @@ export default function AdminCategoriesPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Delete confirmation modal */}
+        {deleteTarget && (
+          <ConfirmDeleteModal
+            title="Delete Category"
+            entityName={deleteTarget.name}
+            warning="Products in this category may be affected. Deleting a category will also delete all products within it."
+            loading={false}
+            deleting={deletingInProgress}
+            onClose={handleCloseDeleteModal}
+            onConfirm={handleConfirmDelete}
+          />
         )}
       </div>
   )

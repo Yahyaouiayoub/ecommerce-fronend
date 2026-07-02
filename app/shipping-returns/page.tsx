@@ -1,7 +1,15 @@
-"use client"
-
+import type { Metadata } from "next"
 import { SiteShell } from "@/components/site-shell"
 import { Package, RotateCcw, ShieldCheck, Truck } from "lucide-react"
+
+export const metadata: Metadata = {
+  title: "Shipping & Returns",
+  description: "Learn about Lumen Store's shipping policies, delivery times, and return process. Free shipping on eligible orders.",
+  openGraph: {
+    title: "Shipping & Returns | Lumen Store",
+    description: "Our shipping policies and return process explained.",
+  },
+}
 
 export default function ShippingReturnsPage() {
   return (
@@ -52,10 +60,6 @@ export default function ShippingReturnsPage() {
             </div>
           </div>
         </div>
-
-        <p className="mt-12 text-center text-sm text-muted-foreground">
-          This page is ready for your custom content. Add your full shipping and returns policy.
-        </p>
       </div>
     </SiteShell>
   )

@@ -6,6 +6,8 @@ import ordersReducer from "./orders-slice"
 import usersReducer from "./users-slice"
 import expensesReducer from "./expenses-slice"
 import invoicesReducer from "./invoices-slice"
+import wishlistReducer from "./wishlist-slice"
+import couponReducer from "./coupon-slice"
 
 export const store = configureStore({
   reducer: {
@@ -15,6 +17,8 @@ export const store = configureStore({
     users: usersReducer,
     expenses: expensesReducer,
     invoices: invoicesReducer,
+    wishlist: wishlistReducer,
+    coupon: couponReducer,
   },
 })
 
@@ -79,3 +83,19 @@ export const selectInvoicesPagination = (state: RootState) => ({
   currentPage: state.invoices.currentPage,
   lastPage: state.invoices.lastPage,
 })
+
+// Coupon selectors
+export const selectCouponCode = (state: RootState) => state.coupon.code
+export const selectCouponDiscount = (state: RootState) => state.coupon.discount
+export const selectCouponDetails = (state: RootState) => state.coupon.details
+export const selectCouponChecking = (state: RootState) => state.coupon.checking
+export const selectCouponError = (state: RootState) => state.coupon.error
+export const selectCouponIsAutoApply = (state: RootState) => state.coupon.isAutoApply
+export const selectCouponSubtotal = (state: RootState) =>
+  state.cart.items.reduce((sum, i) => sum + i.price * i.quantity, 0)
+
+// Wishlist selectors
+export const selectWishlistItems = (state: RootState) => state.wishlist.items
+export const selectWishlistCount = (state: RootState) => state.wishlist.items.length
+export const selectIsInWishlist = (productId: number) => (state: RootState) =>
+  state.wishlist.items.some((i) => i.productId === productId)

@@ -2,6 +2,22 @@ import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import type { ProductVariant, AttributeGroup } from "@/lib/types"
 
+/**
+ * Format an ISO date string to a human-readable date (e.g. "Jun 28, 2026").
+ */
+export function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return ""
+  try {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
+  } catch {
+    return dateStr
+  }
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }

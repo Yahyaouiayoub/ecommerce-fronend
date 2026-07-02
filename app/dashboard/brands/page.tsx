@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { StateMessage } from "@/components/state-message"
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal"
 import { useAuth } from "@/lib/hooks/use-auth"
 import { useApi } from "@/lib/hooks/use-api"
 import {
@@ -17,7 +18,7 @@ import {
   adminDeleteBrand,
 } from "@/lib/api/services"
 import { getApiErrorMessage, getImageUrl } from "@/lib/api/client"
-import type { Brand, AdminBrandPayload } from "@/lib/types"
+import type { Brand } from "@/lib/types"
 import { toast } from "sonner"
 
 export default function AdminBrandsPage() {
@@ -27,6 +28,8 @@ export default function AdminBrandsPage() {
 
   const [localBrands, setLocalBrands] = useState<Brand[] | null>(null)
   const [deletingIds, setDeletingIds] = useState<number[]>([])
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
+  const [deletingInProgress, setDeletingInProgress] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editBrand, setEditBrand] = useState<Brand | null>(null)
   const [saving, setSaving] = useState(false)
@@ -46,12 +49,13 @@ export default function AdminBrandsPage() {
     if (!authLoading && user && user.role !== "admin") router.replace("/profile")
   }, [authLoading, user, router])
 
-  // Keep localBrands in sync with server data
+  // Initial sync: keep localBrands in sync with server data
+  // Only sets on initial load so optimistic updates aren't overwritten
   useEffect(() => {
-    if (data) {
+    if (data && localBrands === null) {
       setLocalBrands(data)
     }
-  }, [data])
+  }, [data, localBrands])
 
   function resetForm() {
     setForm({ name: "", description: "" })
@@ -128,8 +132,14 @@ export default function AdminBrandsPage() {
     }
   }
 
-  async function handleDelete(id: number, name: string) {
-    if (!confirm(`Delete brand "${name}"? Products with this brand will be unlinked.`)) return
+  function handleDelete(id: number, name: string) {
+    setDeleteTarget({ id, name })
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return
+    const { id } = deleteTarget
+    setDeletingInProgress(true)
     setDeletingIds((prev) => [...prev, id])
     setLocalBrands((prev) => prev?.filter((b) => b.id !== id) ?? null)
     try {
@@ -141,6 +151,14 @@ export default function AdminBrandsPage() {
       toast.error(getApiErrorMessage(err, "Failed to delete brand"))
     } finally {
       setDeletingIds((prev) => prev.filter((did) => did !== id))
+      setDeletingInProgress(false)
+      setDeleteTarget(null)
+    }
+  }
+
+  function handleCloseDeleteModal() {
+    if (!deletingInProgress) {
+      setDeleteTarget(null)
     }
   }
 
@@ -306,6 +324,19 @@ export default function AdminBrandsPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Delete confirmation modal */}
+        {deleteTarget && (
+          <ConfirmDeleteModal
+            title="Delete Brand"
+            entityName={deleteTarget.name}
+            warning="Products with this brand will be unlinked. This action cannot be undone."
+            loading={false}
+            deleting={deletingInProgress}
+            onClose={handleCloseDeleteModal}
+            onConfirm={handleConfirmDelete}
+          />
         )}
       </div>
   )

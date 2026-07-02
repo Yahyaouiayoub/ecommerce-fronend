@@ -21,6 +21,14 @@ import {
   PanelLeft,
   Receipt,
   CreditCard,
+  Percent,
+  RotateCcw,
+  Megaphone,
+  LayoutGrid,
+  MessageSquareQuote,
+  Mail,
+  MailQuestion,
+  HeartPulse,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSidebar } from "@/components/sidebar-context"
@@ -35,9 +43,19 @@ const NAV_ITEMS = [
   { href: "/dashboard/invoices", label: "Invoices", icon: Receipt },
   { href: "/dashboard/payments", label: "Payments", icon: CreditCard },
   { href: "/dashboard/carts", label: "Carts", icon: ClipboardList },
+  { href: "/dashboard/coupons", label: "Coupons", icon: Percent },
+  { href: "/dashboard/promotions", label: "Promotions", icon: Megaphone },
+  { href: "/dashboard/featured-reviews", label: "Featured Reviews", icon: MessageSquareQuote },
+  { href: "/dashboard/reviews", label: "Review Moderation", icon: MessageSquareQuote },
+  { href: "/dashboard/homepage-features", label: "Homepage Features", icon: LayoutGrid },
+  { href: "/dashboard/refunds", label: "Refunds", icon: RotateCcw },
   { href: "/dashboard/expenses", label: "Expenses", icon: Banknote },
   { href: "/dashboard/settings", label: "Settings", icon: Settings2 },
   { href: "/dashboard/settings/paypal", label: "PayPal", icon: CreditCard },
+  { href: "/dashboard/settings/email", label: "Email (SMTP)", icon: Mail },
+  { href: "/dashboard/email-logs", label: "Email Logs", icon: MailQuestion },
+  { href: "/dashboard/settings/social-login", label: "Social Login", icon: Users },
+  { href: "/dashboard/health", label: "System Health", icon: HeartPulse },
   { href: "/dashboard/users", label: "Users", icon: Users },
 ]
 

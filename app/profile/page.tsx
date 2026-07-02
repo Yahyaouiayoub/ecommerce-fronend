@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { LayoutDashboard, LogOut, Package, User as UserIcon, MapPin, Plus, Pencil, Trash2, Check, CreditCard, ArrowRight } from "lucide-react"
+import { LayoutDashboard, LogOut, Package, User as UserIcon, MapPin, Plus, Pencil, Trash2, Check, CreditCard, ArrowRight, Heart, Link as LinkIcon, Unlink } from "lucide-react"
 import { SiteShell } from "@/components/site-shell"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +13,8 @@ import { StateMessage } from "@/components/state-message"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/hooks/use-auth"
-import { updateProfile, changePassword, getAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress, type CreateAddressPayload } from "@/lib/api/services"
+import { updateProfile, changePassword, getAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress, getSocialAccounts, unlinkSocialAccount, type CreateAddressPayload } from "@/lib/api/services"
+import type { SocialAccount } from "@/lib/types"
 import { getApiErrorMessage } from "@/lib/api/client"
 import type { Address } from "@/lib/types"
 import { toast } from "sonner"
@@ -32,6 +33,11 @@ export default function ProfilePage() {
   const [passwordSaving, setPasswordSaving] = useState(false)
 
 
+
+  // Social accounts state
+  const [socialAccounts, setSocialAccounts] = useState<SocialAccount[]>([])
+  const [loadingSocialAccounts, setLoadingSocialAccounts] = useState(true)
+  const [unlinkingId, setUnlinkingId] = useState<number | null>(null)
 
   // Address state
   const [addresses, setAddresses] = useState<Address[]>([])
@@ -59,7 +65,10 @@ export default function ProfilePage() {
         .catch(() => {})
         .finally(() => setLoadingAddresses(false))
 
-
+      getSocialAccounts()
+        .then(setSocialAccounts)
+        .catch(() => {})
+        .finally(() => setLoadingSocialAccounts(false))
     }
   }, [user])
 
@@ -276,6 +285,16 @@ export default function ProfilePage() {
                     Payment History
                   </span>
                   <ArrowRight className="size-4 text-muted-foreground" />
+                </Link>
+                <Link
+                  href="/wishlist"
+                  className="inline-flex h-8 items-center justify-between rounded-lg border border-border bg-background px-3 py-1 text-sm font-medium hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Heart className="size-4" />
+                    Wishlist
+                  </span>
+                  <span className="text-muted-foreground">View →</span>
                 </Link>
               </>
             )}
@@ -567,6 +586,75 @@ export default function ProfilePage() {
                           <Trash2 className="size-3.5 text-destructive" />
                         </button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Linked Accounts section */}
+            <div className="rounded-xl border border-border bg-card p-6">
+              <div className="flex items-center gap-2">
+                <LinkIcon className="size-4 text-muted-foreground" />
+                <h2 className="text-lg font-semibold">Linked Accounts</h2>
+              </div>
+              <Separator className="my-4" />
+
+              {loadingSocialAccounts ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <Skeleton key={i} className="h-16 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : socialAccounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No social accounts linked. You can connect Google, Facebook, X (Twitter), or GitHub from the login page.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {socialAccounts.map((account) => (
+                    <div
+                      key={account.id}
+                      className="flex items-center justify-between rounded-lg border border-border bg-background p-4"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-accent/10 text-accent text-xs font-bold shrink-0">
+                          {account.provider === "google" && "G"}
+                          {account.provider === "facebook" && "f"}
+                          {account.provider === "twitter" && "𝕏"}
+                          {account.provider === "github" && "gh"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium">{account.provider_label}</p>
+                          <p className="text-xs text-muted-foreground truncate">
+                            Linked {new Date(account.linked_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (unlinkingId === account.id) return
+                          setUnlinkingId(account.id)
+                          try {
+                            const res = await unlinkSocialAccount(account.id)
+                            setSocialAccounts((prev) => prev.filter((a) => a.id !== account.id))
+                            toast.success(res.message)
+                          } catch {
+                            toast.error("Failed to unlink account")
+                          } finally {
+                            setUnlinkingId(null)
+                          }
+                        }}
+                        disabled={unlinkingId === account.id}
+                        className="inline-flex size-8 items-center justify-center rounded-md hover:bg-muted transition-colors shrink-0 disabled:opacity-40"
+                        title={`Unlink ${account.provider_label}`}
+                      >
+                        {unlinkingId === account.id ? (
+                          <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <Unlink className="size-3.5 text-destructive" />
+                        )}
+                      </button>
                     </div>
                   ))}
                 </div>
